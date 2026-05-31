@@ -12,12 +12,11 @@ class NetworkTab : public QWidget {
 
 public:
     explicit NetworkTab(MainWindow *mainWindow, QWidget *parent = nullptr);
-
-private:
     void refresh();
     void joinNetwork();
     void leaveNetwork();
 
+private:
     MainWindow *m_main;
     QTreeWidget *m_tree;
     QLineEdit *m_input;

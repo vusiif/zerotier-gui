@@ -15,6 +15,8 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 set(SOURCES
     main.cpp
     MainWindow.cpp
+    tabs/StatusTab.cpp
+    tabs/ZeroTierTab.cpp
     tabs/ServiceTab.cpp
     tabs/InfoTab.cpp
     tabs/PeersTab.cpp
@@ -24,6 +26,8 @@ set(SOURCES
 
 set(HEADERS
     MainWindow.h
+    tabs/StatusTab.h
+    tabs/ZeroTierTab.h
     tabs/ServiceTab.h
     tabs/InfoTab.h
     tabs/PeersTab.h

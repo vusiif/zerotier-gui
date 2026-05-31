@@ -11,10 +11,9 @@ class PeersTab : public QWidget {
 
 public:
     explicit PeersTab(MainWindow *mainWindow, QWidget *parent = nullptr);
-
-private:
     void refresh();
 
+private:
     MainWindow *m_main;
     QTreeWidget *m_tree;
     QProcess *m_proc;

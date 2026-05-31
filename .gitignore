@@ -5,3 +5,4 @@ dist/
 .docs-tmp/
 .claude/
 *.user
+build/
