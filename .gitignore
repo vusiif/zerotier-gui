@@ -1,4 +1,7 @@
 cmake-build-*/
 dist/
 .idea/
+.vscode/
+.docs-tmp/
+.claude/
 *.user
