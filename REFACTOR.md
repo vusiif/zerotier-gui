@@ -9,7 +9,7 @@ Ela 使用 Qt 私有接口，部署时必须使用与构建一致的 Qt DLL。�
 ## 已接入
 
 - 安装引导：显示界面前同步检查本地程序和服务；未安装时只创建独立安装窗口，确认后 winget 安装。检测到安装成功后关闭安装窗口并创建管理主窗口；已安装时直接进入管理界面。
-- 导航：概览、网络、Peers、Moon、服务、设置与日志。
+- 导航：概览、网络、Peers、Moon、服务、设置与日志、帮助与诊断。
 - 网络加入/离开、Moon orbit/deorbit 与 .moon 文件导入。
 - 服务启动/停止/重启继承主程序管理员权限，通过隐藏的异步 PowerShell 进程执行，并等待目标状态。停止报错但服务已停止时可继续重启；其他失败明确提示。
 - 启动主界面时自动启动已停止的 ZeroTier 服务，并等待 Running；最多等待 30 秒，期间禁用管理操作，失败或超时明确提示。已运行时直接读取节点信息，不重复启动。
@@ -52,4 +52,5 @@ Peers 页面显示链路 DIRECT/RELAY、距首选路径上次发送和接收的�
 MSVC 编译输出由 scripts/msvc_launcher.py 转为 UTF-8，并将中文 showIncludes 前缀转换为 Ninja 可识别的英文前缀；避免缺少英文语言包时遗漏头文件依赖。
 发布脚本：powershell -ExecutionPolicy Bypass -File scripts/Publish.ps1
 发布脚本使用独立暂存目录，成功后生成 dist，保留旧 dist 为带时间的备份。
+从提交 8419776 的干净 Git 导出源码独立构建并运行十组测试通过；不依赖忽略的原始图片或 Ela 示例。scripts/VerifyRelease.ps1 已在真实发布包上验证排除 Qt SDK 后创建主窗口和正常关闭，要求 ZeroTier 服务事先已运行，不改变服务状态。当前节点离线且没有测试网络/Moon，真实连通性尚待验收。
 不包含构建缓存；带 Ela DLL、Qt 依赖、许可说明及 SHA256 清单。

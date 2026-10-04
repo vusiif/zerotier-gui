@@ -37,6 +37,7 @@ foreach ($name in @('lgpl.html', 'gpl.html', 'licenses-used-in-qt.html')) {
     $file = Join-Path $qtDocs $name
     if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination $licenseDirectory }
 }
+Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination (Join-Path $staging 'PROJECT-README.md')
 Copy-Item -LiteralPath (Join-Path $projectRoot 'REFACTOR.md') -Destination (Join-Path $staging 'DEVELOPMENT-NOTES.md')
 @"
 ZeroTier GUI (Windows x64)
