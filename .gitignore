@@ -1,5 +1,6 @@
 cmake-build-*/
 dist/
+packages/
 .idea/
 .vscode/
 .docs-tmp/
