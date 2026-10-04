@@ -52,6 +52,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Publish.ps1 -BuildDi
 本机 ZeroTier 1.16.2 的只读查询成功，但节点当前 OFFLINE；没有可用测试网络和 Moon 节点，实际组网、真实设置修改、Moon 连通性和重启后恢复仍未验收。
 卸载、缓存维护等改变状态的流程使用模拟后端验证，没有卸载本机 ZeroTier。
 
-详细结果见 [测试报告](TEST_REPORT.md) 和 [开发说明](REFACTOR.md)。macOS、单文件版本尚未实现。
+详细结果见 [测试报告](TEST_REPORT.md) 和 [开发说明](REFACTOR.md)。macOS 尚未实现。
+
+## 单 EXE 静态版
+
+Windows x64 静态版已使用 QtBase 6.11.2、静态 Ela 和 MSVC `/MT` 编译，并通过十组测试及仅含 EXE 的隔离目录启动检查。运行时无需旁边的 Qt/Ela/VC 运行时 DLL，ZeroTier 仍由启动检测和 winget 流程单独安装。
+
+构建方法见 [静态构建说明](packaging/STATIC.md)。`scripts/BuildStatic.ps1` 构建静态 Qt、程序和测试；`scripts/publish_static.py` 生成独立 EXE、SHA256 及静态发布支持 ZIP。发布时同时提供支持 ZIP，内含 Qt 源码、许可证、程序对象文件和已验证的重新链接脚本；它不需要放在 EXE 旁边才能运行。
 
 ElaWidgetTools 的 MIT 许可证保留在 `ElaWidgetTools-main/LICENSE`；发布包附带 Qt 许可说明。

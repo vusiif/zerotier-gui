@@ -34,6 +34,9 @@ add_library(${PROJECT_NAME} ${LIB_TYPE}
 
 set_target_properties(${PROJECT_NAME} PROPERTIES EXPORT_NAME WidgetTools)
 add_library(Ela::WidgetTools ALIAS ${PROJECT_NAME})
+if(ELAWIDGETTOOLS_BUILD_STATIC_LIB)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC ELAWIDGETTOOLS_STATIC)
+endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
