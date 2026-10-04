@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QProcess>
+#include <QTimer>
 #include <QStandardPaths>
 #include <QFile>
 
@@ -62,7 +63,7 @@ PeersTab::PeersTab(MainWindow *mainWindow, QWidget *parent)
         m_main->appendOutput(QString("Loaded %1 peers.\n").arg(peers.size()));
     });
 
-    refresh();
+    QTimer::singleShot(0, this, &PeersTab::refresh);
 }
 
 void PeersTab::refresh()

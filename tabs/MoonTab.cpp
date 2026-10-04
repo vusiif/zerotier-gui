@@ -12,6 +12,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QProcess>
+#include <QTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
@@ -50,7 +51,7 @@ MoonTab::MoonTab(MainWindow *mainWindow, QWidget *parent)
     m_moonList = new QListWidget;
     layout->addWidget(m_moonList);
 
-    refreshMoonList();
+    QTimer::singleShot(0, this, &MoonTab::refreshMoonList);
 }
 
 void MoonTab::addMoon()

@@ -10,6 +10,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QProcess>
+#include <QTimer>
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QFile>
@@ -82,7 +83,7 @@ NetworkTab::NetworkTab(MainWindow *mainWindow, QWidget *parent)
         m_main->appendOutput(QString("Loaded %1 networks.\n").arg(nets.size()));
     });
 
-    refresh();
+    QTimer::singleShot(0, this, &NetworkTab::refresh);
 }
 
 void NetworkTab::refresh()

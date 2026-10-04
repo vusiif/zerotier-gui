@@ -6,3 +6,44 @@ dist/
 .claude/
 *.user
 build/
+dist-staging-*/
+dist-backup-*/
+
+# Local tools, temporary files and generated compiler output
+.agents/
+.codex/
+__pycache__/
+*.pyc
+CMakeFiles/
+CMakeCache.txt
+Testing/
+compile_commands.json
+*.obj
+*.o
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.pch
+*.idb
+*.log
+
+# Original artwork and unused upstream demos. Runtime assets stay in assets/art.
+/photos/
+/ElaWidgetTools-main/ElaWidgetToolsExample/
+/ElaWidgetTools-main/doc/
+
+# Local credentials and ZeroTier runtime state
+.env
+.env.*
+!.env.example
+identity.secret
+authtoken.secret
+local.conf
+peers.d/
+networks.d/
+moons.d/
+zerotier_dump.txt
+zerotier-diagnostics*.txt

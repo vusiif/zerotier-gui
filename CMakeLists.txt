@@ -1,47 +1,134 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 project(zerotier_gui LANGUAGES CXX)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC OFF)
+set(CMAKE_AUTORCC ON)
+if(EXISTS "C:/Qt/6.11.2/msvc2022_64")
+    list(APPEND CMAKE_PREFIX_PATH "C:/Qt/6.11.2/msvc2022_64")
+endif()
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets WidgetsPrivate Concurrent)
+if(MSVC)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    # Keep Ninja's dependency parsing independent of the Windows display language.
+    set(CMAKE_CXX_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
+    set(CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${Python3_EXECUTABLE};${CMAKE_CURRENT_SOURCE_DIR}/scripts/msvc_launcher.py")
+endif()
+add_subdirectory(ElaWidgetTools-main/ElaWidgetTools EXCLUDE_FROM_ALL)
+add_executable(zerotier_gui WIN32 main.cpp MainWindow.cpp MainWindow.h InstallWindow.cpp InstallWindow.h ArtPanel.cpp ArtPanel.h art.qrc ZeroTierClient.cpp ZeroTierClient.h ServiceStartup.cpp ServiceStartup.h NetworkMonitor.cpp NetworkMonitor.h MoonFiles.cpp MoonFiles.h ServiceControl.cpp ServiceControl.h NetworkSettingsDialog.cpp NetworkSettingsDialog.h PeerPresentation.cpp PeerPresentation.h DiagnosticReport.cpp DiagnosticReport.h PeerCacheMaintenance.cpp PeerCacheMaintenance.h ZeroTierUninstaller.cpp ZeroTierUninstaller.h)
+target_link_libraries(zerotier_gui PRIVATE Ela::WidgetTools Qt6::Concurrent)
+add_custom_command(TARGET zerotier_gui POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:ElaWidgetTools> $<TARGET_FILE_DIR:zerotier_gui>)
+if(MSVC)
+    target_compile_options(zerotier_gui PRIVATE /utf-8)
+    target_link_options(zerotier_gui PRIVATE "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'")
+    target_compile_options(ElaWidgetTools PRIVATE /utf-8)
+endif()
 
-# Qt path
-list(APPEND CMAKE_PREFIX_PATH "C:/Qt/6.8.3/msvc2022_64")
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+if(WIN32)
+    target_link_libraries(zerotier_gui PRIVATE shell32 advapi32)
+endif()
 
-set(SOURCES
-    main.cpp
-    MainWindow.cpp
-    tabs/StatusTab.cpp
-    tabs/ZeroTierTab.cpp
-    tabs/ServiceTab.cpp
-    tabs/InfoTab.cpp
-    tabs/PeersTab.cpp
-    tabs/NetworkTab.cpp
-    tabs/MoonTab.cpp
-)
 
-set(HEADERS
-    MainWindow.h
-    tabs/StatusTab.h
-    tabs/ZeroTierTab.h
-    tabs/ServiceTab.h
-    tabs/InfoTab.h
-    tabs/PeersTab.h
-    tabs/NetworkTab.h
-    tabs/MoonTab.h
-)
-
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets)
-
-# Size and memory optimizations for Release
-target_compile_options(${PROJECT_NAME} PRIVATE
-    $<$<CONFIG:Release>:/O1 /GL /Gy>
-)
-target_link_options(${PROJECT_NAME} PRIVATE
-    $<$<CONFIG:Release>:/LTCG /OPT:REF /OPT:ICF>
-)
+option(ZEROTIER_GUI_BUILD_TESTS "Build subprocess command runner tests" OFF)
+if(ZEROTIER_GUI_BUILD_TESTS)
+    enable_testing()
+    add_executable(command_runner_test tests/CommandRunnerTest.cpp ZeroTierClient.cpp ZeroTierClient.h)
+    target_include_directories(command_runner_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(command_runner_test PRIVATE Qt6::Core)
+    if(WIN32)
+        target_link_libraries(command_runner_test PRIVATE advapi32)
+    endif()
+    if(MSVC)
+        target_compile_options(command_runner_test PRIVATE /utf-8)
+    endif()
+    add_executable(service_startup_test tests/ServiceStartupTest.cpp ServiceStartup.cpp ServiceStartup.h ZeroTierClient.cpp ZeroTierClient.h)
+    target_include_directories(service_startup_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(service_startup_test PRIVATE Qt6::Core Qt6::Concurrent)
+    if(WIN32)
+        target_link_libraries(service_startup_test PRIVATE advapi32)
+    endif()
+    if(MSVC)
+        target_compile_options(service_startup_test PRIVATE /utf-8)
+    endif()
+    add_executable(network_monitor_test tests/NetworkMonitorTest.cpp NetworkMonitor.cpp NetworkMonitor.h ZeroTierClient.cpp ZeroTierClient.h)
+    target_include_directories(network_monitor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(network_monitor_test PRIVATE Qt6::Core)
+    if(WIN32)
+        target_link_libraries(network_monitor_test PRIVATE advapi32)
+    endif()
+    if(MSVC)
+        target_compile_options(network_monitor_test PRIVATE /utf-8)
+    endif()
+    add_executable(moon_service_test tests/MoonServiceTest.cpp MoonFiles.cpp MoonFiles.h ServiceControl.cpp ServiceControl.h)
+    target_include_directories(moon_service_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(moon_service_test PRIVATE Qt6::Core)
+    if(MSVC)
+        target_compile_options(moon_service_test PRIVATE /utf-8)
+    endif()
+    add_test(NAME moon_service COMMAND moon_service_test)
+    add_test(NAME network_monitor COMMAND network_monitor_test)
+    add_test(NAME service_startup COMMAND service_startup_test)
+    add_test(NAME command_runner COMMAND command_runner_test)
+    get_target_property(qt_core_dll Qt6::Core IMPORTED_LOCATION_RELEASE)
+    get_filename_component(qt_runtime_dir "${qt_core_dll}" DIRECTORY)
+    get_filename_component(qt_sdk_dir "${qt_runtime_dir}" DIRECTORY)
+    set_tests_properties(command_runner service_startup network_monitor moon_service PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${qt_runtime_dir}")
+    add_executable(ui_smoke_test tests/UiSmokeTest.cpp MainWindow.cpp MainWindow.h InstallWindow.cpp InstallWindow.h ArtPanel.cpp ArtPanel.h art.qrc ZeroTierClient.cpp ZeroTierClient.h ServiceStartup.cpp ServiceStartup.h NetworkMonitor.cpp NetworkMonitor.h MoonFiles.cpp MoonFiles.h ServiceControl.cpp ServiceControl.h NetworkSettingsDialog.cpp NetworkSettingsDialog.h PeerPresentation.cpp PeerPresentation.h DiagnosticReport.cpp DiagnosticReport.h PeerCacheMaintenance.cpp PeerCacheMaintenance.h ZeroTierUninstaller.cpp ZeroTierUninstaller.h)
+    target_include_directories(ui_smoke_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(ui_smoke_test PRIVATE Ela::WidgetTools Qt6::Concurrent)
+    if(WIN32)
+        target_link_libraries(ui_smoke_test PRIVATE shell32 advapi32)
+    endif()
+    if(MSVC)
+        target_compile_options(ui_smoke_test PRIVATE /utf-8)
+    endif()
+    add_custom_command(TARGET ui_smoke_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:ElaWidgetTools> $<TARGET_FILE_DIR:ui_smoke_test>)
+    add_test(NAME ui_smoke COMMAND ui_smoke_test)
+    add_test(NAME functional COMMAND ui_smoke_test --functional)
+    add_executable(network_settings_test tests/NetworkSettingsTest.cpp NetworkSettingsDialog.cpp NetworkSettingsDialog.h ZeroTierClient.cpp ZeroTierClient.h)
+    target_include_directories(network_settings_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(network_settings_test PRIVATE Qt6::Widgets)
+    if(WIN32)
+        target_link_libraries(network_settings_test PRIVATE advapi32)
+    endif()
+    if(MSVC)
+        target_compile_options(network_settings_test PRIVATE /utf-8)
+    endif()
+    add_test(NAME network_settings COMMAND network_settings_test)
+    add_executable(peer_presentation_test tests/PeerPresentationTest.cpp PeerPresentation.cpp PeerPresentation.h)
+    target_include_directories(peer_presentation_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(peer_presentation_test PRIVATE Qt6::Core)
+    if(MSVC)
+        target_compile_options(peer_presentation_test PRIVATE /utf-8)
+    endif()
+    add_test(NAME peer_presentation COMMAND peer_presentation_test)
+    add_executable(diagnostic_report_test tests/DiagnosticReportTest.cpp DiagnosticReport.cpp DiagnosticReport.h)
+    target_include_directories(diagnostic_report_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(diagnostic_report_test PRIVATE Qt6::Core)
+    if(MSVC)
+        target_compile_options(diagnostic_report_test PRIVATE /utf-8)
+    endif()
+    add_test(NAME diagnostic_report COMMAND diagnostic_report_test)
+    add_executable(maintenance_test tests/MaintenanceTest.cpp PeerCacheMaintenance.cpp PeerCacheMaintenance.h ZeroTierUninstaller.cpp ZeroTierUninstaller.h ServiceControl.cpp ServiceControl.h ZeroTierClient.cpp ZeroTierClient.h)
+    target_include_directories(maintenance_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(maintenance_test PRIVATE Qt6::Core)
+    if(WIN32)
+        target_link_libraries(maintenance_test PRIVATE advapi32)
+    endif()
+    if(MSVC)
+        target_compile_options(maintenance_test PRIVATE /utf-8)
+    endif()
+    add_test(NAME maintenance COMMAND maintenance_test)
+    set_tests_properties(maintenance PROPERTIES TIMEOUT 30 ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${qt_runtime_dir}")
+    set_tests_properties(diagnostic_report PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${qt_runtime_dir}")
+    set_tests_properties(peer_presentation PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${qt_runtime_dir}")
+    set_tests_properties(ui_smoke functional network_settings PROPERTIES TIMEOUT 60
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=${qt_sdk_dir}/plugins/platforms"
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${qt_runtime_dir}")
+endif()

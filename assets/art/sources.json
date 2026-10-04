@@ -1,0 +1,44 @@
+{
+  "hero-light": {
+    "source": "FILTER_BUBBLE142251680.jpg",
+    "size": [
+      1100,
+      662
+    ]
+  },
+  "hero-dark": {
+    "source": "ニーナ-143062130.jpg",
+    "size": [
+      1100,
+      619
+    ]
+  },
+  "detail-light": {
+    "source": "无题双色-119323564.png",
+    "size": [
+      996,
+      760
+    ]
+  },
+  "detail-dark": {
+    "source": "无题彼岸花-142908369.png",
+    "size": [
+      760,
+      760
+    ]
+  },
+  "install-light": {
+    "source": "りんごちゃん-142563007.png",
+    "size": [
+      562,
+      760
+    ]
+  },
+  "install-dark": {
+    "source": "无题无名-125436762.png",
+    "size": [
+      589,
+      760
+    ]
+  }
+}

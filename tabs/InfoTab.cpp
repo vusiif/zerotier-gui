@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QProcess>
+#include <QTimer>
 #include <QStandardPaths>
 #include <QFile>
 
@@ -62,7 +63,7 @@ InfoTab::InfoTab(MainWindow *mainWindow, QWidget *parent)
         m_main->appendOutput("Node info refreshed.\n");
     });
 
-    refresh();
+    QTimer::singleShot(0, this, &InfoTab::refresh);
 }
 
 void InfoTab::refresh()

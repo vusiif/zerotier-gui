@@ -3,6 +3,7 @@
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QTimer>
 #include <QLabel>
 #include <QPushButton>
 #include <QProcess>
@@ -163,8 +164,8 @@ StatusTab::StatusTab(MainWindow *mainWindow, QWidget *parent)
         attemptFinalUpdate();
     });
 
-    // 首次显示时自动刷新
-    refresh();
+    // 首次显示时自动刷新（延迟到事件循环启动后）
+    QTimer::singleShot(0, this, &StatusTab::refresh);
 }
 
 void StatusTab::refresh()
