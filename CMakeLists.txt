@@ -23,6 +23,7 @@ endif()
 
 set(SOURCES
     main.cpp
+    UiMotion.cpp
     AppStyle.cpp
     AppLog.cpp
     MainWindow.cpp
@@ -50,6 +51,7 @@ set(SOURCES
 
 set(HEADERS
     MainWindow.h
+    UiMotion.h
     AppStyle.h
     AppLog.h
     DataTable.h
@@ -115,7 +117,7 @@ if(ZEROTIER_BUILD_TESTS)
         target_compile_options(zerotier_gui_tests PRIVATE /utf-8)
     endif()
     add_test(NAME gui_regressions COMMAND zerotier_gui_tests
-        startupInstallationGate artworkAndCacheEntry
+        startupInstallationGate artworkAndCacheEntry smoothMotionAndIcons
         serviceProtectionMoonFilesAndHelp
         windowControlsAndFileLog reconcilePreservesInteraction
         renameSurvivesPollingAndRecreation detailsKeepAllFieldsAndStayNonModal

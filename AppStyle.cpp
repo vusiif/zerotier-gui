@@ -1,3 +1,4 @@
+#include "UiMotion.h"
 #include "AppStyle.h"
 #include <QApplication>
 #include <QPalette>
@@ -7,11 +8,13 @@
 
 void applyAppStyle(QApplication &app)
 {
+    UiMotion::install(app);
     setAppDarkTheme(app, QSettings().value("appearance/dark", false).toBool());
 }
 
 void setAppDarkTheme(QApplication &app, bool dark)
 {
+    UiMotion::install(app);
     app.setProperty("darkTheme", dark);
     // Keep dialog text legible even when Windows uses a dark system theme.
     app.setStyle(QStyleFactory::create("Fusion"));
@@ -54,7 +57,7 @@ void setAppDarkTheme(QApplication &app, bool dark)
         QTreeWidget::item { padding: 7px 8px; }
         QTreeWidget::item:selected { background: #d8eaf6; color: #123f60; }
         QHeaderView::section { background: #eaf1f7; color: #294c66; padding: 9px 8px; border: none; border-right: 1px solid #d7e1e9; }
-        QPushButton, QToolButton { color: #20394c; background: #f7fafc; border: 1px solid #b9cbd8; border-radius: 4px; padding: 6px 12px; }
+        QPushButton, QToolButton { color: #20394c; background: #f7fafc; border: 1px solid #b9cbd8; border-radius: 8px; padding: 8px 14px; }
         QPushButton:hover, QToolButton:hover { background: #e3eff8; border-color: #5889ad; }
         QPushButton:pressed, QToolButton:pressed { background: #d0e4f3; }
         QPushButton:focus, QToolButton:focus { border: 1px solid #176993; }

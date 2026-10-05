@@ -1,3 +1,5 @@
+#include "UiMotion.h"
+#include <QVariantAnimation>
 #include "MainWindow.h"
 #include "DataTable.h"
 #include "AppStyle.h"
@@ -74,7 +76,8 @@ void MainWindow::setupUi()
         theme->setToolTip(theme->text());
     };
     updateThemeText(theme->isChecked());
-    connect(theme, &QToolButton::toggled, this, [updateThemeText](bool dark) {
+    connect(theme, &QToolButton::toggled, this, [this, updateThemeText](bool dark) {
+        UiMotion::transition(centralWidget());
         setAppDarkTheme(*qApp, dark);
         QSettings().setValue("appearance/dark", dark);
         updateThemeText(dark);
@@ -125,13 +128,12 @@ void MainWindow::setupUi()
     m_navigation->addItems({QStringLiteral("服务"), QStringLiteral("节点信息"),
                             QStringLiteral("成员 / Peers"), QStringLiteral("网络 / Networks"),
                             QStringLiteral("中转站 / Moon"), QStringLiteral("帮助")});
-    const QStyle::StandardPixmap icons[] = {QStyle::SP_ComputerIcon, QStyle::SP_FileDialogInfoView,
-        QStyle::SP_DirHomeIcon, QStyle::SP_DriveNetIcon, QStyle::SP_DialogApplyButton, QStyle::SP_DialogHelpButton};
+    const QString icons[] = {"settings", "info", "peers", "network", "moon", "help"};
     for (int row = 0; row < m_navigation->count(); ++row) {
         auto *item = m_navigation->item(row);
         item->setData(Qt::UserRole, item->text());
         item->setToolTip(item->text());
-        item->setIcon(style()->standardIcon(icons[row]));
+        item->setIcon(UiMotion::icon(icons[row]));
     }
     m_navigation->setIconSize(QSize(20, 20));
     m_navigation->setMinimumWidth(0);
@@ -151,7 +153,10 @@ void MainWindow::setupUi()
     m_pages->addWidget(new NetworkTab(this));
     m_pages->addWidget(new MoonTab(this));
     m_pages->addWidget(new HelpTab(this));
-    connect(m_navigation, &QListWidget::currentRowChanged, m_pages, &QStackedWidget::setCurrentIndex);
+    connect(m_navigation, &QListWidget::currentRowChanged, m_pages, [this](int row) {
+        UiMotion::transition(m_pages);
+        m_pages->setCurrentIndex(row);
+    });
     m_navigation->setCurrentRow(ZeroTier::executable().isEmpty() ? 0 : 3);
     m_horizontal->addWidget(sidebar);
     m_horizontal->addWidget(m_pages);
@@ -261,7 +266,8 @@ void MainWindow::setSidebarCollapsed(bool collapsed)
 {
     if (m_collapsed == collapsed) return;
     if (collapsed) {
-        m_sidebarWidth = m_horizontal->sizes().value(0, 190);
+        if (!m_sidebarAnimation || m_sidebarAnimation->state() != QAbstractAnimation::Running)
+            m_sidebarWidth = m_horizontal->sizes().value(0, 190);
         QSettings().setValue("window/sidebar", m_horizontal->saveState());
     }
     m_collapsed = collapsed;
@@ -272,9 +278,32 @@ void MainWindow::setSidebarCollapsed(bool collapsed)
         auto *item = m_navigation->item(row);
         item->setText(collapsed ? QString() : item->data(Qt::UserRole).toString());
     }
-    m_sidebar->setMinimumWidth(collapsed ? 64 : 130);
-    m_sidebar->setMaximumWidth(collapsed ? 64 : QWIDGETSIZE_MAX);
+    if (!m_sidebarAnimation) {
+        m_sidebarAnimation = new QVariantAnimation(this);
+        m_sidebarAnimation->setDuration(220);
+        m_sidebarAnimation->setEasingCurve(QEasingCurve::OutCubic);
+        connect(m_sidebarAnimation, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
+            const int width = value.toInt();
+            m_horizontal->setSizes({width, qMax(460, m_horizontal->width() - width)});
+        });
+        connect(m_sidebarAnimation, &QVariantAnimation::finished, this, [this] {
+            m_sidebar->setMinimumWidth(m_collapsed ? 64 : 130);
+            m_sidebar->setMaximumWidth(m_collapsed ? 64 : QWIDGETSIZE_MAX);
+        });
+    }
+    m_sidebarAnimation->stop();
+    const int from = m_horizontal->sizes().value(0);
+    m_sidebar->setMinimumWidth(64);
+    m_sidebar->setMaximumWidth(QWIDGETSIZE_MAX);
     const int width = collapsed ? 64 : qMax(130, m_sidebarWidth);
-    m_horizontal->setSizes({width, qMax(460, m_horizontal->width() - width)});
+    if (isVisible()) {
+        m_sidebarAnimation->setStartValue(from);
+        m_sidebarAnimation->setEndValue(width);
+        m_sidebarAnimation->start();
+    } else {
+        m_horizontal->setSizes({width, qMax(460, m_horizontal->width() - width)});
+        m_sidebar->setMinimumWidth(collapsed ? 64 : 130);
+        m_sidebar->setMaximumWidth(collapsed ? 64 : QWIDGETSIZE_MAX);
+    }
     QSettings().setValue("window/sidebarCollapsed", collapsed);
 }

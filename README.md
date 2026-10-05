@@ -68,3 +68,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Package.ps1 -Version
 Publish 使用与构建相同的动态 Qt SDK，部署 DLL、平台插件、许可证和说明，生成 SHA256 清单；旧 dist 改名备份。Package 调用已安装的 WinRAR 和 Inno Setup，拒绝覆盖同版本安装包。分发完整 dist，或任选一个生成的安装 EXE；不要发送 CMake 缓存、测试 CLI 或构建目录。
 
 服务页恢复 Peers 缓存维护：读取 CLI 实际 homeDir，停止服务后将 peers.d 改名备份，再确认服务恢复运行。节点身份、网络和 Moon 配置保留。服务、帮助和安装页使用内嵌背景，随深浅主题切换；表格页保留可用空间。Peers 根据 preferred/tunneled 判断连接类型，缺失字段显示未知，路径原始字段可在提示和详情中查看。
+
+界面按钮与侧栏使用随主题变色的矢量图标，提供侧栏收放、页面/主题过渡和按钮悬停缓动；轮询更新保持静默。

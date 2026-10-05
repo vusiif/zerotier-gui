@@ -9,6 +9,7 @@ class QSplitter;
 class QWidget;
 class QLabel;
 class ServiceControl;
+class QVariantAnimation;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -30,6 +31,7 @@ private:
     QWidget *m_sidebar;
     QLabel *m_brand, *m_subtitle, *m_hint;
     bool m_collapsed = false;
+    QVariantAnimation *m_sidebarAnimation = nullptr;
     int m_sidebarWidth = 190;
     bool m_operationBusy = false;
     ServiceControl *m_serviceControl;

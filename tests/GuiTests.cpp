@@ -1,3 +1,5 @@
+#include <QLabel>
+#include <QVariantAnimation>
 #include "../ArtPanel.h"
 #include "../AppStyle.h"
 #include "../AppLog.h"
@@ -144,6 +146,37 @@ private slots:
         QVERIFY(!cancelled.isVisible());
         QCOMPARE(cancelled.result(), int(QDialog::Rejected));
     }
+    void smoothMotionAndIcons() {
+        MainWindow window;
+        window.show();
+        auto *navigation = window.findChild<QListWidget *>("navigation");
+        auto *sidebar = window.findChild<QToolButton *>("sidebarToggle");
+        QVERIFY(navigation && sidebar);
+        QTest::qWait(250);
+        sidebar->click();
+        auto *motion = window.findChild<QVariantAnimation *>();
+        QVERIFY(motion);
+        QCOMPARE(motion->state(), QAbstractAnimation::Running);
+        QTRY_COMPARE(motion->state(), QAbstractAnimation::Stopped);
+        sidebar->click();
+        QTRY_COMPARE(motion->state(), QAbstractAnimation::Stopped);
+        navigation->setCurrentRow(0);
+        QTRY_VERIFY(!window.findChild<QLabel *>("transitionSnapshot"));
+        auto *cache = window.findChild<QPushButton *>("peerCacheButton");
+        QVERIFY(cache && !cache->icon().isNull());
+        QEvent enter(QEvent::Enter);
+        QCoreApplication::sendEvent(cache, &enter);
+        QTest::qWait(40);
+        const double intermediate = cache->property("hoverProgress").toDouble();
+        QVERIFY(intermediate > 0 && intermediate < 1);
+        QEvent leave(QEvent::Leave);
+        QCoreApplication::sendEvent(cache, &leave);
+        QTRY_VERIFY(cache->property("hoverProgress").toDouble() < .001);
+        navigation->setCurrentRow(5);
+        QVERIFY(window.findChild<QLabel *>("transitionSnapshot"));
+        QTRY_VERIFY(!window.findChild<QLabel *>("transitionSnapshot"));
+        window.close();
+    }
     void artworkAndCacheEntry() {
         MainWindow window;
         window.show();
@@ -151,7 +184,7 @@ private slots:
         QVERIFY(navigation);
         navigation->setCurrentRow(0);
         QVERIFY(window.findChild<QPushButton *>("peerCacheButton"));
-        QTest::qWait(60);
+        QTest::qWait(250);
         QVERIFY(QDir().mkpath("screenshots"));
         QVERIFY(window.grab().save("screenshots/art-light.png"));
         ArtPanel *art = nullptr;
@@ -161,16 +194,16 @@ private slots:
         QVERIFY(art->property("artLoaded").toBool());
         QVERIFY(art->property("artResource").toString().endsWith("-light.jpg"));
         setAppDarkTheme(*qApp, true);
-        QTest::qWait(60);
+        QTest::qWait(250);
         QVERIFY(window.grab().save("screenshots/art-dark.png"));
         QVERIFY(art->property("artLoaded").toBool());
         QVERIFY(art->property("artResource").toString().endsWith("-dark.jpg"));
         navigation->setCurrentRow(5);
-        QTest::qWait(60);
+        QTest::qWait(250);
         QVERIFY(window.grab().save("screenshots/help-dark.png"));
         InstallWindow installer([] { return false; });
         installer.show();
-        QTest::qWait(60);
+        QTest::qWait(250);
         installer.grab();
         auto *installationArt = installer.findChild<ArtPanel *>();
         QVERIFY(installationArt && installationArt->property("artLoaded").toBool());
@@ -187,6 +220,9 @@ private slots:
         auto *navigation = window.findChild<QListWidget *>("navigation");
         auto *splitter = window.findChild<QSplitter *>("mainSplitter");
         QVERIFY(theme && sidebar && pin && navigation && splitter);
+        QVERIFY(!theme->icon().isNull() && !sidebar->icon().isNull() && !pin->icon().isNull());
+        for (auto *button : window.findChildren<QPushButton *>())
+            if (button->isVisible()) QVERIFY(!button->icon().isNull());
         theme->click();
         QVERIFY(qApp->property("darkTheme").toBool());
         QVERIFY(qApp->palette().color(QPalette::Text).lightness() > 180);
@@ -207,7 +243,7 @@ private slots:
         QCOMPARE(navigation->currentRow(), 2);
         sidebar->click();
         QVERIFY(!navigation->item(0)->text().isEmpty());
-        QVERIFY(splitter->sizes()[0] >= 130);
+        QTRY_VERIFY(splitter->sizes()[0] >= 130);
         pin->click();
         QVERIFY(window.windowFlags().testFlag(Qt::WindowStaysOnTopHint));
         QVERIFY(window.isVisible());
