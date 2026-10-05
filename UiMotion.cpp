@@ -6,7 +6,7 @@
 #include <QPainterPath>
 #include <QEvent>
 #include <QVariantAnimation>
-#include <QGraphicsOpacityEffect>
+#include <QPaintEvent>
 #include <QLabel>
 #include <QPointer>
 #include <QTimer>
@@ -111,15 +111,71 @@ void UiMotion::install(QApplication &app) {
     if (app.property("uiMotionInstalled").toBool()) return;
     app.setProperty("uiMotionInstalled",true); app.installEventFilter(new ButtonMotion(&app));
 }
-void UiMotion::transition(QWidget *surface) {
-    if (!surface || !surface->isVisible()) return;
-    if (auto *previous=surface->findChild<QLabel *>("transitionSnapshot",Qt::FindDirectChildrenOnly)) delete previous;
-    const QPixmap snapshot=surface->grab();
-    auto *overlay=new QLabel(surface); overlay->setObjectName("transitionSnapshot");
-    overlay->setPixmap(snapshot); overlay->setGeometry(surface->rect()); overlay->setAttribute(Qt::WA_TransparentForMouseEvents);
-    auto *opacity=new QGraphicsOpacityEffect(overlay); overlay->setGraphicsEffect(opacity); overlay->show(); overlay->raise();
-    auto *animation=new QVariantAnimation(overlay); animation->setDuration(180); animation->setStartValue(1.0); animation->setEndValue(0.0);
-    animation->setEasingCurve(QEasingCurve::OutCubic);
-    QObject::connect(animation,&QVariantAnimation::valueChanged,opacity,[opacity](const QVariant &v){opacity->setOpacity(v.toReal());});
-    QObject::connect(animation,&QVariantAnimation::finished,overlay,&QObject::deleteLater); animation->start();
+namespace {
+// Each frame blends two cached pixmaps. Never re-render a widget hierarchy or
+// repolish a stylesheet inside the animation's frame callback.
+class TransitionLayer final : public QWidget {
+    QPixmap m_before, m_after;
+    qreal m_progress = 0;
+    bool m_theme;
+public:
+    TransitionLayer(QWidget *surface, QPixmap before, QPixmap after, bool theme)
+        : QWidget(surface), m_before(std::move(before)), m_after(std::move(after)), m_theme(theme) {
+        setObjectName("transitionSnapshot");
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setGeometry(surface->rect());
+        surface->installEventFilter(this);
+        auto *animation = new QVariantAnimation(this);
+        animation->setObjectName("surfaceTransition");
+        animation->setDuration(theme ? 360 : 300);
+        animation->setEasingCurve(QEasingCurve::InOutCubic);
+        animation->setStartValue(0.0);
+        animation->setEndValue(1.0);
+        connect(animation, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
+            m_progress = value.toReal();
+            setProperty("transitionProgress", m_progress);
+            update();
+        });
+        connect(animation, &QVariantAnimation::finished, this, [this] {
+            hide();
+            deleteLater();
+        });
+        show();
+        raise();
+        animation->start();
+    }
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.fillRect(rect(), palette().color(QPalette::Window));
+        // Restrained travel gives pages direction without moving their real
+        // controls, scroll position, or click targets.
+        const qreal travel = m_theme ? 0 : 12;
+        painter.setOpacity(1);
+        painter.drawPixmap(QPointF(-travel * m_progress, 0), m_before);
+        painter.setOpacity(m_progress);
+        painter.drawPixmap(QPointF(travel * (1 - m_progress), 0), m_after);
+    }
+    bool eventFilter(QObject *object, QEvent *event) override {
+        if (object == parentWidget() && (event->type() == QEvent::Resize || event->type() == QEvent::Hide)) {
+            hide();
+            deleteLater();
+        }
+        return QWidget::eventFilter(object, event);
+    }
+};
+}
+void UiMotion::transition(QWidget *surface, const std::function<void()> &change, bool themeChange) {
+    if (!surface || !surface->isVisible() || !surface->updatesEnabled()) { change(); return; }
+    // Capture the displayed intermediate frame before removing an interrupted
+    // transition, so repeated clicks continue from what the user sees.
+    const QPixmap before = surface->grab();
+    if (auto *previous = surface->findChild<QWidget *>("transitionSnapshot", Qt::FindDirectChildrenOnly))
+        delete previous;
+    surface->setUpdatesEnabled(false);
+    change();
+    surface->setUpdatesEnabled(true);
+    const QPixmap after = surface->grab();
+    new TransitionLayer(surface, before, after, themeChange);
 }

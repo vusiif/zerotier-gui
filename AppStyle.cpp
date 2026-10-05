@@ -17,7 +17,10 @@ void setAppDarkTheme(QApplication &app, bool dark)
     UiMotion::install(app);
     app.setProperty("darkTheme", dark);
     // Keep dialog text legible even when Windows uses a dark system theme.
-    app.setStyle(QStyleFactory::create("Fusion"));
+    if (!app.property("fusionStyleInstalled").toBool()) {
+        app.setStyle(QStyleFactory::create("Fusion"));
+        app.setProperty("fusionStyleInstalled", true);
+    }
     QPalette palette;
     palette.setColor(QPalette::Window, QColor("#f4f7fa"));
     palette.setColor(QPalette::WindowText, QColor("#20394c"));

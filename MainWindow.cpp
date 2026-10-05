@@ -77,10 +77,11 @@ void MainWindow::setupUi()
     };
     updateThemeText(theme->isChecked());
     connect(theme, &QToolButton::toggled, this, [this, updateThemeText](bool dark) {
-        UiMotion::transition(centralWidget());
-        setAppDarkTheme(*qApp, dark);
+        UiMotion::transition(centralWidget(), [updateThemeText, dark] {
+            setAppDarkTheme(*qApp, dark);
+            updateThemeText(dark);
+        }, true);
         QSettings().setValue("appearance/dark", dark);
-        updateThemeText(dark);
     });
     toolbar->addWidget(theme);
     auto *pin = new QToolButton;
@@ -154,8 +155,7 @@ void MainWindow::setupUi()
     m_pages->addWidget(new MoonTab(this));
     m_pages->addWidget(new HelpTab(this));
     connect(m_navigation, &QListWidget::currentRowChanged, m_pages, [this](int row) {
-        UiMotion::transition(m_pages);
-        m_pages->setCurrentIndex(row);
+        UiMotion::transition(m_pages, [this, row] { m_pages->setCurrentIndex(row); });
     });
     m_navigation->setCurrentRow(ZeroTier::executable().isEmpty() ? 0 : 3);
     m_horizontal->addWidget(sidebar);

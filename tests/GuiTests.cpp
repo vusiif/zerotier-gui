@@ -152,7 +152,7 @@ private slots:
         auto *navigation = window.findChild<QListWidget *>("navigation");
         auto *sidebar = window.findChild<QToolButton *>("sidebarToggle");
         QVERIFY(navigation && sidebar);
-        QTest::qWait(250);
+        QTest::qWait(400);
         sidebar->click();
         auto *motion = window.findChild<QVariantAnimation *>();
         QVERIFY(motion);
@@ -161,7 +161,7 @@ private slots:
         sidebar->click();
         QTRY_COMPARE(motion->state(), QAbstractAnimation::Stopped);
         navigation->setCurrentRow(0);
-        QTRY_VERIFY(!window.findChild<QLabel *>("transitionSnapshot"));
+        QTRY_VERIFY(!window.findChild<QWidget *>("transitionSnapshot"));
         auto *cache = window.findChild<QPushButton *>("peerCacheButton");
         QVERIFY(cache && !cache->icon().isNull());
         QEvent enter(QEvent::Enter);
@@ -173,8 +173,29 @@ private slots:
         QCoreApplication::sendEvent(cache, &leave);
         QTRY_VERIFY(cache->property("hoverProgress").toDouble() < .001);
         navigation->setCurrentRow(5);
-        QVERIFY(window.findChild<QLabel *>("transitionSnapshot"));
-        QTRY_VERIFY(!window.findChild<QLabel *>("transitionSnapshot"));
+        auto *layer = window.findChild<QWidget *>("transitionSnapshot");
+        QVERIFY(layer);
+        QTest::qWait(100);
+        const double progress = layer->property("transitionProgress").toDouble();
+        QVERIFY(progress > 0 && progress < 1);
+        navigation->setCurrentRow(2);
+        QCOMPARE(window.findChildren<QWidget *>("transitionSnapshot").size(), 1);
+        QTRY_VERIFY(!window.findChild<QWidget *>("transitionSnapshot"));
+        auto *theme = window.findChild<QToolButton *>("themeToggle");
+        auto *styleBefore = qApp->style();
+        theme->click();
+        QCOMPARE(qApp->style(), styleBefore);
+        layer = window.findChild<QWidget *>("transitionSnapshot");
+        QVERIFY(layer);
+        QTest::qWait(100);
+        QVERIFY(layer->property("transitionProgress").toDouble() > 0);
+        QVERIFY(layer->property("transitionProgress").toDouble() < 1);
+        theme->click();
+        QCOMPARE(window.findChildren<QWidget *>("transitionSnapshot").size(), 1);
+        QTRY_VERIFY(!window.findChild<QWidget *>("transitionSnapshot"));
+        navigation->setCurrentRow(5);
+        window.resize(window.width() + 20, window.height() + 20);
+        QTRY_VERIFY(!window.findChild<QWidget *>("transitionSnapshot"));
         window.close();
     }
     void artworkAndCacheEntry() {
@@ -184,7 +205,7 @@ private slots:
         QVERIFY(navigation);
         navigation->setCurrentRow(0);
         QVERIFY(window.findChild<QPushButton *>("peerCacheButton"));
-        QTest::qWait(250);
+        QTest::qWait(400);
         QVERIFY(QDir().mkpath("screenshots"));
         QVERIFY(window.grab().save("screenshots/art-light.png"));
         ArtPanel *art = nullptr;
@@ -194,16 +215,16 @@ private slots:
         QVERIFY(art->property("artLoaded").toBool());
         QVERIFY(art->property("artResource").toString().endsWith("-light.jpg"));
         setAppDarkTheme(*qApp, true);
-        QTest::qWait(250);
+        QTest::qWait(400);
         QVERIFY(window.grab().save("screenshots/art-dark.png"));
         QVERIFY(art->property("artLoaded").toBool());
         QVERIFY(art->property("artResource").toString().endsWith("-dark.jpg"));
         navigation->setCurrentRow(5);
-        QTest::qWait(250);
+        QTest::qWait(400);
         QVERIFY(window.grab().save("screenshots/help-dark.png"));
         InstallWindow installer([] { return false; });
         installer.show();
-        QTest::qWait(250);
+        QTest::qWait(400);
         installer.grab();
         auto *installationArt = installer.findChild<ArtPanel *>();
         QVERIFY(installationArt && installationArt->property("artLoaded").toBool());
