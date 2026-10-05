@@ -37,7 +37,7 @@ NetworkTab::NetworkTab(MainWindow *mainWindow, QWidget *parent)
     });
     m_client = new ZeroTierClient(this);
     connect(m_client, &ZeroTierClient::log, m_main, &MainWindow::appendOutput);
-    m_monitor = new NetworkMonitor(m_client, this, [this] { return !m_operating && !m_settingsOpen; });
+    m_monitor = new NetworkMonitor(m_client, this, [this] { return !m_operating && !m_settingsOpen && !m_main->operationBusy(); });
     connect(m_monitor, &NetworkMonitor::diagnostic, m_main, &MainWindow::appendOutput);
     connect(m_monitor, &NetworkMonitor::automaticallyLeft, this, [this](const QString &id) {
         const auto message = QStringLiteral("网络 %1 不存在，已自动退出。").arg(id);
@@ -98,6 +98,7 @@ void NetworkTab::operate(const QString &action, const QString &id)
         QMessageBox::warning(this, QStringLiteral("网络 ID"), QStringLiteral("请输入完整的 16 位十六进制网络 ID。"));
         return;
     }
+    if (!m_main->beginOperation()) return;
     m_operating = true;
     m_join->setEnabled(false);
     m_leave->setEnabled(false);
@@ -105,6 +106,7 @@ void NetworkTab::operate(const QString &action, const QString &id)
     const QString submittedInput = m_input->text();
     ZeroTier::command(this, {action, id}, [this, action, id, submittedInput](bool ok, const QString &output) {
         m_operating = false;
+        m_main->endOperation();
         m_join->setEnabled(true);
         m_leave->setEnabled(true);
         m_settings->setEnabled(!selectedId().isEmpty());
@@ -123,12 +125,14 @@ void NetworkTab::editSettings()
 {
     const auto id = selectedId();
     if (id.isEmpty() || m_operating || m_settingsOpen) return;
+    if (!m_main->beginOperation()) return;
     m_settingsOpen = true;
     m_join->setEnabled(false);
     m_leave->setEnabled(false);
     m_settings->setEnabled(false);
     NetworkSettingsDialog dialog(m_client, id, this);
     dialog.exec();
+    m_main->endOperation();
     m_settingsOpen = false;
     m_join->setEnabled(true);
     m_leave->setEnabled(true);

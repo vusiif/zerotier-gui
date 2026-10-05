@@ -1,6 +1,10 @@
 #include "../AppStyle.h"
 #include "../AppLog.h"
 #include "../InstallWindow.h"
+#include "../ServiceControl.h"
+#include "../MoonFiles.h"
+#include "../HelpTab.h"
+#include <QTextBrowser>
 #include "../DataTable.h"
 #include "../MainWindow.h"
 #include "../ZeroTierClient.h"
@@ -29,6 +33,16 @@
 #include <QToolButton>
 #include <QTextEdit>
 #include <QtTest>
+
+class FakeServiceControl : public ServiceControl {
+public:
+    int calls = 0;
+    std::function<void(bool, QString)> pending;
+    void run(const QString &, std::function<void(bool, QString)> callback) override {
+        ++calls;
+        pending = std::move(callback);
+    }
+};
 
 class GuiTests : public QObject {
     Q_OBJECT
@@ -63,6 +77,53 @@ private slots:
         QSettings().clear();
     }
     void cleanupTestCase() { qputenv("PATH", m_oldPath); }
+    void serviceProtectionMoonFilesAndHelp() {
+        auto *control = new FakeServiceControl;
+        MainWindow window(nullptr, control);
+        window.show();
+        bool completed = false, rejected = false;
+        window.runService("restart", [&](bool ok) { completed = ok; });
+        QVERIFY(window.operationBusy());
+        QVERIFY(!window.close());
+        window.runService("stop", [&](bool ok) { rejected = !ok; });
+        QVERIFY(rejected);
+        QCOMPARE(control->calls, 1);
+        auto callback = std::move(control->pending);
+        callback(true, {});
+        QVERIFY(completed);
+        QVERIFY(!window.operationBusy());
+        QVERIFY(ServiceControl::script("restart").contains("WaitForStatus('Running'"));
+        QVERIFY(ServiceControl::script("restart").contains("WaitForStatus('Stopped'"));
+        QVERIFY(ServiceControl::script("invalid").isEmpty());
+        const auto invocation = ZeroTier::preparePowerShell("Write-Output 'test'");
+        QVERIFY(invocation.arguments.contains("-Command"));
+        QVERIFY(!invocation.arguments.contains("-EncodedCommand"));
+        auto *help = window.findChild<HelpTab *>();
+        QVERIFY(help);
+        const auto html = help->findChild<QTextBrowser *>("helpContent")->toHtml();
+        QVERIFY(html.contains("https://github.com/vusiif/zerotier-gui"));
+        QVERIFY(html.contains("https://gitee.com/vusiif/zerotier-gui"));
+        QVERIFY(help->findChild<QPushButton *>("exportDiagnosticsButton"));
+        QTemporaryDir sandbox;
+        QVERIFY(sandbox.isValid());
+        const auto home = sandbox.filePath("home");
+        QVERIFY(QDir().mkpath(home));
+        const auto source = sandbox.filePath("test.moon");
+        QFile file(source);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("test signed file bytes");
+        file.close();
+        QVERIFY(MoonFiles::importFile(source, home, false).isEmpty());
+        QCOMPARE(MoonFiles::count(home), 1);
+        QVERIFY(!MoonFiles::importFile(source, home, false).isEmpty());
+        QVERIFY(MoonFiles::importFile(source, home, true).isEmpty());
+        QString error;
+        const auto info = QJsonDocument(QJsonObject{{"config", QJsonObject{{"settings", QJsonObject{{"homeDir", home}}}}}}).toJson();
+        QCOMPARE(MoonFiles::homeDirectory(info, &error), QDir::cleanPath(home));
+        QVERIFY(MoonFiles::homeDirectory("{}", &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        window.close();
+    }
     void startupInstallationGate() {
         bool installed = false;
         InstallWindow installer([&installed] { return installed; });

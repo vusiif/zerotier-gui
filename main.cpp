@@ -2,6 +2,8 @@
 #include "AppStyle.h"
 #include "MainWindow.h"
 #include "InstallWindow.h"
+#include "ServiceStartup.h"
+#include <QStatusBar>
 
 int main(int argc, char *argv[])
 {
@@ -15,5 +17,14 @@ int main(int argc, char *argv[])
     }
     MainWindow window;
     window.show();
+    ServiceStartup startup;
+    window.beginOperation();
+    window.statusBar()->showMessage(QStringLiteral("正在检查 ZeroTier 服务…"));
+    startup.ensureRunning([&window](bool ok, const QString &error) {
+        window.endOperation();
+        const auto message = ok ? QStringLiteral("ZeroTier 服务已就绪。") : error;
+        window.appendOutput(message);
+        window.statusBar()->showMessage(message, ok ? 5000 : 0);
+    });
     return app.exec();
 }

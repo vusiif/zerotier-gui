@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC OFF)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
 if(MSVC)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set(CMAKE_CXX_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
@@ -32,6 +32,11 @@ set(SOURCES
     InstallWindow.cpp
     NetworkSettingsDialog.cpp
     NetworkMonitor.cpp
+    ServiceStartup.cpp
+    ServiceControl.cpp
+    MoonFiles.cpp
+    DiagnosticReport.cpp
+    HelpTab.cpp
     tabs/ServiceTab.cpp
     tabs/InfoTab.cpp
     tabs/PeersTab.cpp
@@ -49,6 +54,11 @@ set(HEADERS
     InstallWindow.h
     NetworkSettingsDialog.h
     NetworkMonitor.h
+    ServiceStartup.h
+    ServiceControl.h
+    MoonFiles.h
+    DiagnosticReport.h
+    HelpTab.h
     tabs/ServiceTab.h
     tabs/InfoTab.h
     tabs/PeersTab.h
@@ -57,7 +67,7 @@ set(HEADERS
 )
 
 qt_add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Concurrent)
 if(QT_CORE_LIBRARY_TYPE STREQUAL "STATIC_LIBRARY")
     # Keep the headless smoke test available in the standalone executable too.
     qt_import_plugins(${PROJECT_NAME} INCLUDE Qt6::QOffscreenIntegrationPlugin)
@@ -84,7 +94,7 @@ if(ZEROTIER_BUILD_TESTS)
     set(TEST_SOURCES ${SOURCES})
     list(REMOVE_ITEM TEST_SOURCES main.cpp)
     qt_add_executable(zerotier_gui_tests tests/GuiTests.cpp ${TEST_SOURCES} ${HEADERS})
-    target_link_libraries(zerotier_gui_tests PRIVATE Qt6::Widgets Qt6::Test)
+    target_link_libraries(zerotier_gui_tests PRIVATE Qt6::Widgets Qt6::Test Qt6::Concurrent)
     if(QT_CORE_LIBRARY_TYPE STREQUAL "STATIC_LIBRARY")
         qt_import_plugins(zerotier_gui_tests INCLUDE Qt6::QOffscreenIntegrationPlugin)
     endif()
@@ -99,6 +109,7 @@ if(ZEROTIER_BUILD_TESTS)
     endif()
     add_test(NAME gui_regressions COMMAND zerotier_gui_tests
         startupInstallationGate
+        serviceProtectionMoonFilesAndHelp
         windowControlsAndFileLog reconcilePreservesInteraction
         renameSurvivesPollingAndRecreation detailsKeepAllFieldsAndStayNonModal
         mouseDragScrollsBothAxes asynchronousPollAndRecovery windowLayoutAndVisuals
@@ -123,6 +134,21 @@ if(ZEROTIER_BUILD_TESTS)
     endforeach()
     target_sources(networksettings_test PRIVATE NetworkSettingsDialog.cpp NetworkSettingsDialog.h)
     target_sources(networkmonitor_test PRIVATE NetworkMonitor.cpp NetworkMonitor.h)
+    add_executable(servicestartup_test tests/ServiceStartupTest.cpp ServiceStartup.cpp ManagementClient.cpp ZeroTierClient.cpp AppLog.cpp)
+    target_include_directories(servicestartup_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(servicestartup_test PRIVATE Qt6::Widgets Qt6::Concurrent)
+    if(WIN32)
+        target_link_libraries(servicestartup_test PRIVATE advapi32)
+    endif()
+    add_executable(diagnosticreport_test tests/DiagnosticReportTest.cpp DiagnosticReport.cpp)
+    target_include_directories(diagnosticreport_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(diagnosticreport_test PRIVATE Qt6::Core)
+    if(MSVC)
+        target_compile_options(servicestartup_test PRIVATE /utf-8)
+        target_compile_options(diagnosticreport_test PRIVATE /utf-8)
+    endif()
+    add_test(NAME servicestartup COMMAND servicestartup_test)
+    add_test(NAME diagnosticreport COMMAND diagnosticreport_test)
     option(ZEROTIER_TEST_POWERSHELL "Run integration tests that launch PowerShell" OFF)
     if(ZEROTIER_TEST_POWERSHELL)
         add_test(NAME powershell_regressions COMMAND zerotier_gui_tests

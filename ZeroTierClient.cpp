@@ -123,10 +123,8 @@ ZeroTier::PowerShellInvocation ZeroTier::preparePowerShell(const QString &script
     const QString wrapped = "$ProgressPreference = 'SilentlyContinue'\n"
         "$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'\n& {\n"
         + script + "\n} *> " + quotePowerShell(invocation.logPath);
-    const auto encoded = QByteArray(reinterpret_cast<const char *>(wrapped.utf16()),
-                                    wrapped.size() * 2).toBase64();
     invocation.arguments = {"-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
-                            "-EncodedCommand", QString::fromLatin1(encoded)};
+                            "-Command", wrapped};
     return invocation;
 }
 

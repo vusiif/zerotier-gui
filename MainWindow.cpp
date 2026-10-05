@@ -2,6 +2,9 @@
 #include "DataTable.h"
 #include "AppStyle.h"
 #include "AppLog.h"
+#include "ServiceControl.h"
+#include "HelpTab.h"
+#include <QProcess>
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QStyle>
@@ -35,8 +38,10 @@
 #include <shellapi.h>
 #endif
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
+MainWindow::MainWindow(QWidget *parent, ServiceControl *serviceControl) : QMainWindow(parent),
+    m_serviceControl(serviceControl ? serviceControl : new ServiceControl(this))
 {
+    m_serviceControl->setParent(this);
     setupUi();
 }
 
@@ -119,9 +124,9 @@ void MainWindow::setupUi()
     m_navigation->setObjectName("navigation");
     m_navigation->addItems({QStringLiteral("服务"), QStringLiteral("节点信息"),
                             QStringLiteral("成员 / Peers"), QStringLiteral("网络 / Networks"),
-                            QStringLiteral("中转站 / Moon")});
+                            QStringLiteral("中转站 / Moon"), QStringLiteral("帮助")});
     const QStyle::StandardPixmap icons[] = {QStyle::SP_ComputerIcon, QStyle::SP_FileDialogInfoView,
-        QStyle::SP_DirHomeIcon, QStyle::SP_DriveNetIcon, QStyle::SP_DialogApplyButton};
+        QStyle::SP_DirHomeIcon, QStyle::SP_DriveNetIcon, QStyle::SP_DialogApplyButton, QStyle::SP_DialogHelpButton};
     for (int row = 0; row < m_navigation->count(); ++row) {
         auto *item = m_navigation->item(row);
         item->setData(Qt::UserRole, item->text());
@@ -145,6 +150,7 @@ void MainWindow::setupUi()
     m_pages->addWidget(new PeersTab(this));
     m_pages->addWidget(new NetworkTab(this));
     m_pages->addWidget(new MoonTab(this));
+    m_pages->addWidget(new HelpTab(this));
     connect(m_navigation, &QListWidget::currentRowChanged, m_pages, &QStackedWidget::setCurrentIndex);
     m_navigation->setCurrentRow(ZeroTier::executable().isEmpty() ? 0 : 3);
     m_horizontal->addWidget(sidebar);
@@ -164,6 +170,11 @@ void MainWindow::setupUi()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    if (m_operationBusy) {
+        statusBar()->showMessage(QStringLiteral("请等待当前操作完成后关闭。"), 5000);
+        event->ignore();
+        return;
+    }
     QSettings settings;
     settings.setValue("window/geometry", saveGeometry());
     if (!m_collapsed) settings.setValue("window/sidebar", m_horizontal->saveState());
@@ -173,64 +184,72 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::runService(const QString &action, std::function<void(bool)> finished)
 {
-    QString script = "$ErrorActionPreference = 'Stop'\ntry {\n";
-    if (action == "start") script += "Start-Service -Name ZeroTierOneService -ErrorAction Stop\n";
-    else if (action == "stop") script += "Stop-Service -Name ZeroTierOneService -ErrorAction Stop\n";
-    else if (action == "restart") script += "Restart-Service -Name ZeroTierOneService -ErrorAction Stop\n";
-    else { if (finished) finished(false); return; }
-    script += "exit 0\n} catch { Write-Output $_; exit 1 }";
-    runElevatedScript(QStringLiteral("ZeroTier 服务：%1").arg(action), script, finished);
+    if (!beginOperation()) { if (finished) finished(false); return; }
+    m_serviceControl->run(action, [this, action, finished](bool ok, const QString &error) {
+        endOperation();
+        const auto message = ok ? QStringLiteral("服务 %1 操作完成。").arg(action) : error;
+        appendOutput(message);
+        statusBar()->showMessage(message, ok ? 5000 : 15000);
+        if (finished) finished(ok);
+    });
 }
+
+bool MainWindow::beginOperation()
+{
+    if (m_operationBusy) {
+        statusBar()->showMessage(QStringLiteral("其他操作正在执行，请稍后重试。"), 5000);
+        return false;
+    }
+    m_operationBusy = true;
+    return true;
+}
+
+void MainWindow::endOperation() { m_operationBusy = false; }
 
 void MainWindow::runElevatedScript(const QString &label, const QString &script,
                                    std::function<void(bool)> finished)
 {
-#ifdef Q_OS_WIN
+    if (!beginOperation()) { if (finished) finished(false); return; }
     const auto invocation = ZeroTier::preparePowerShell(script);
     if (!invocation.directory->isValid()) {
-        appendOutput(QStringLiteral("无法创建操作日志\n"));
+        endOperation();
+        appendOutput(QStringLiteral("无法创建操作临时目录。"));
         if (finished) finished(false);
         return;
     }
-    const QString parameters = invocation.arguments.join(' ');
-    SHELLEXECUTEINFOW info = {};
-    info.cbSize = sizeof(info);
-    info.fMask = SEE_MASK_NOCLOSEPROCESS;
-    info.lpVerb = L"runas";
-    info.lpFile = L"powershell.exe";
-    info.lpParameters = reinterpret_cast<LPCWSTR>(parameters.utf16());
-    info.nShow = SW_HIDE;
-    if (!ShellExecuteExW(&info) || !info.hProcess) {
-        appendOutput(label + QStringLiteral("：未执行，提权被取消或启动失败\n"));
-        if (finished) finished(false);
-        return;
-    }
-    appendOutput(label + QStringLiteral("：执行中…\n"));
-    auto handle = std::shared_ptr<void>(info.hProcess, [](void *value) { CloseHandle(value); });
-    auto *timer = new QTimer(this);
-    timer->setInterval(200);
-    connect(timer, &QTimer::timeout, this, [this, timer, handle, label, invocation, finished] {
-        if (WaitForSingleObject(handle.get(), 0) != WAIT_OBJECT_0) return;
-        timer->stop();
-        DWORD code = 1;
-        GetExitCodeProcess(handle.get(), &code);
-        QFile output(invocation.logPath);
-        if (output.open(QIODevice::ReadOnly)) {
-            // Detect UTF-8 and UTF-16 logs from supported PowerShell versions.
-            QTextStream stream(&output);
-            const QString text = stream.readAll().trimmed();
-            if (!text.isEmpty()) appendOutput(text + '\n');
-        }
-        appendOutput(label + (code == 0 ? QStringLiteral("：完成\n") : QStringLiteral("：失败（退出码 %1）\n").arg(code)));
-        if (finished) finished(code == 0);
-        timer->deleteLater();
-    });
-    timer->start();
-#else
-    Q_UNUSED(script)
-    appendOutput(label + QStringLiteral("：此操作仅支持 Windows\n"));
-    if (finished) finished(false);
+    auto *process = new QProcess(this);
+#ifdef Q_OS_WIN
+    process->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) { args->flags |= CREATE_NO_WINDOW; });
 #endif
+    auto *timeout = new QTimer(process);
+    timeout->setSingleShot(true);
+    timeout->setInterval(600000);
+    auto completed = std::make_shared<bool>(false);
+    auto complete = [this, process, timeout, completed, label, invocation, finished](bool ok) {
+        if (*completed) return;
+        *completed = true;
+        timeout->stop();
+        endOperation();
+        QFile file(invocation.logPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            QTextStream stream(&file);
+            appendOutput(stream.read(16384));
+        }
+        const auto message = label + (ok ? QStringLiteral("：完成") : QStringLiteral("：未完成，请检查权限、网络或服务状态。"));
+        appendOutput(message);
+        statusBar()->showMessage(message, 15000);
+        if (finished) finished(ok);
+        process->deleteLater();
+    };
+    connect(timeout, &QTimer::timeout, process, [process, complete] { process->kill(); complete(false); });
+    connect(process, &QProcess::errorOccurred, process, [complete](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) complete(false);
+    });
+    connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), process,
+        [complete](int code, QProcess::ExitStatus status) { complete(code == 0 && status == QProcess::NormalExit); });
+    // The application's manifest already requests administrator privileges.
+    process->start(qEnvironmentVariable("SystemRoot") + "/System32/WindowsPowerShell/v1.0/powershell.exe", invocation.arguments);
+    timeout->start();
 }
 
 void MainWindow::appendOutput(const QString &text)
