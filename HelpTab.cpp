@@ -1,4 +1,5 @@
 #include "HelpTab.h"
+#include "ArtPanel.h"
 #include "MainWindow.h"
 #include "ZeroTierClient.h"
 #include "DiagnosticReport.h"
@@ -14,6 +15,7 @@
 HelpTab::HelpTab(MainWindow *mainWindow, QWidget *parent) : QWidget(parent), m_main(mainWindow)
 {
     auto *layout = new QVBoxLayout(this);
+    layout->addWidget(new ArtPanel("detail", QStringLiteral("连接指南与诊断"), this));
     m_content = new QTextBrowser;
     m_content->setObjectName("helpContent");
     m_content->setOpenExternalLinks(true);

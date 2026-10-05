@@ -55,3 +55,16 @@ ctest --test-dir cmake-build-release -C Release --output-on-failure
 默认测试包含窗口按钮、主题、单文件日志、表格交互与模拟 CLI 查询，不调用系统 ZeroTier。日志位于构建目录的 `test-results.txt`，界面截图位于 `screenshots/`。测试用的 `zerotier-cli.exe` 不能打包进正式发行目录。
 
 PowerShell 集成测试通过 `-DZEROTIER_TEST_POWERSHELL=ON` 单独启用，默认关闭。它会启动 PowerShell，可能触发本机行为检测；卸载清理测试仅操作构建目录中的临时测试数据，不卸载真实 ZeroTier。本次 UI 恢复验证未运行这两项集成测试。
+
+## 发布目录与安装包
+
+在 MSVC 开发者终端构建 Release 后运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Publish.ps1 -BuildDirectory cmake-build-ui-restore -QtDirectory C:/Qt/6.11.2/msvc2022_64
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Package.ps1 -Version 0.2.0
+```
+
+Publish 使用与构建相同的动态 Qt SDK，部署 DLL、平台插件、许可证和说明，生成 SHA256 清单；旧 dist 改名备份。Package 调用已安装的 WinRAR 和 Inno Setup，拒绝覆盖同版本安装包。分发完整 dist，或任选一个生成的安装 EXE；不要发送 CMake 缓存、测试 CLI 或构建目录。
+
+服务页恢复 Peers 缓存维护：读取 CLI 实际 homeDir，停止服务后将 peers.d 改名备份，再确认服务恢复运行。节点身份、网络和 Moon 配置保留。服务、帮助和安装页使用内嵌背景，随深浅主题切换；表格页保留可用空间。Peers 根据 preferred/tunneled 判断连接类型，缺失字段显示未知，路径原始字段可在提示和详情中查看。

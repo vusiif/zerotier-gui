@@ -2,6 +2,7 @@
 
 #include "ManagementClient.h"
 #include "AppLog.h"
+#include "ArtPanel.h"
 #include <QPushButton>
 
 #include <QLabel>
@@ -30,6 +31,7 @@ InstallWindow::InstallWindow(std::function<bool()> detector, QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(24, 24, 24, 24);
 
+    layout->addWidget(new ArtPanel("install", QStringLiteral("准备好连接世界了吗？"), this));
     m_status = new QLabel(QStringLiteral("尚未安装 ZeroTier，请使用 winget 安装后继续。"), this);
     m_status->setWordWrap(true);
     layout->addWidget(m_status);

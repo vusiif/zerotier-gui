@@ -1,6 +1,9 @@
 #include "ServiceTab.h"
 #include "../MainWindow.h"
 #include "../ZeroTierClient.h"
+#include "../PeerCacheMaintenance.h"
+#include "../MoonFiles.h"
+#include "../ArtPanel.h"
 #include <QHBoxLayout>
 #include <QJsonObject>
 #include <QLabel>
@@ -37,6 +40,11 @@ ServiceTab::ServiceTab(MainWindow *mainWindow, QWidget *parent)
     serviceActions->addWidget(m_start);
     serviceActions->addWidget(m_stop);
     serviceActions->addWidget(m_restart);
+    m_cache = new QPushButton(QStringLiteral("重建 Peers 缓存…"));
+    m_cache->setObjectName("peerCacheButton");
+    serviceActions->addWidget(m_cache);
+    m_cacheMaintenance = new PeerCacheMaintenance(m_main->serviceControl(), this);
+    connect(m_cache, &QPushButton::clicked, this, &ServiceTab::clearPeerCache);
     serviceActions->addStretch();
     layout->addLayout(serviceActions);
     connect(m_start, &QPushButton::clicked, this, [this] { changeService("start"); });
@@ -61,6 +69,7 @@ ServiceTab::ServiceTab(MainWindow *mainWindow, QWidget *parent)
     m_feedback->setWordWrap(true);
     m_feedback->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(m_feedback);
+    layout->addWidget(new ArtPanel("hero", QStringLiteral("你的网络，尽在掌握"), this));
     layout->addStretch();
     m_poller = new JsonPoller(this, "info", true);
     connect(m_poller, &JsonPoller::availabilityChanged, this, [this](bool available, const QString &message) {
@@ -98,7 +107,7 @@ void ServiceTab::updateButtons()
 {
     m_install->setEnabled(!m_busy && !m_installed);
     m_uninstall->setEnabled(!m_busy && m_installed);
-    for (auto *button : {m_start, m_stop, m_restart}) button->setEnabled(!m_busy && m_installed);
+    for (auto *button : {m_start, m_stop, m_restart, m_cache}) button->setEnabled(!m_busy && m_installed);
 }
 
 void ServiceTab::changeService(const QString &action)
@@ -142,5 +151,33 @@ void ServiceTab::packageAction(bool uninstall)
         m_feedback->setText(ok ? (uninstall ? QStringLiteral("ZeroTier 已卸载，数据目录已删除。") : QStringLiteral("安装完成，可进入网络页面加入网络。"))
                                : (uninstall ? QStringLiteral("卸载或数据清理未完成，请检查权限和服务状态。") : QStringLiteral("安装未完成，请检查网络连接和 winget。")));
         m_poller->refresh();
+    });
+}
+
+void ServiceTab::clearPeerCache()
+{
+    if (m_busy || m_main->operationBusy()) return;
+    if (QMessageBox::question(this, QStringLiteral("重建 Peers 缓存"),
+        QStringLiteral("将暂时停止 ZeroTier 服务，把 Peers 缓存移到备份目录，然后重新启动服务。连接会短暂中断，节点身份和网络配置保留。是否继续？"),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    if (!m_main->beginOperation()) return;
+    m_busy = true;
+    updateButtons();
+    m_feedback->setText(QStringLiteral("正在读取实际数据目录…"));
+    auto complete = [this](bool ok, const QString &message) {
+        m_busy = false;
+        m_main->endOperation();
+        updateInstallation();
+        m_feedback->setText(message.isEmpty() ? (ok ? QStringLiteral("缓存维护完成。") : QStringLiteral("缓存维护失败。")) : message);
+        m_main->appendOutput(m_feedback->text());
+        m_poller->refresh();
+    };
+    ZeroTier::command(this, {"-j", "info"}, [this, complete](bool ok, const QString &output) {
+        if (!ok) { complete(false, output); return; }
+        QString error;
+        const QString home = MoonFiles::homeDirectory(output.toUtf8(), &error);
+        if (home.isEmpty()) { complete(false, error); return; }
+        m_feedback->setText(QStringLiteral("正在备份缓存并恢复服务…"));
+        m_cacheMaintenance->run(home, complete);
     });
 }

@@ -1,3 +1,4 @@
+#include "../ArtPanel.h"
 #include "../AppStyle.h"
 #include "../AppLog.h"
 #include "../InstallWindow.h"
@@ -142,6 +143,39 @@ private slots:
         cancelled.reject();
         QVERIFY(!cancelled.isVisible());
         QCOMPARE(cancelled.result(), int(QDialog::Rejected));
+    }
+    void artworkAndCacheEntry() {
+        MainWindow window;
+        window.show();
+        auto *navigation = window.findChild<QListWidget *>("navigation");
+        QVERIFY(navigation);
+        navigation->setCurrentRow(0);
+        QVERIFY(window.findChild<QPushButton *>("peerCacheButton"));
+        QTest::qWait(60);
+        QVERIFY(QDir().mkpath("screenshots"));
+        QVERIFY(window.grab().save("screenshots/art-light.png"));
+        ArtPanel *art = nullptr;
+        for (auto *candidate : window.findChildren<ArtPanel *>())
+            if (candidate->isVisible()) art = candidate;
+        QVERIFY(art);
+        QVERIFY(art->property("artLoaded").toBool());
+        QVERIFY(art->property("artResource").toString().endsWith("-light.jpg"));
+        setAppDarkTheme(*qApp, true);
+        QTest::qWait(60);
+        QVERIFY(window.grab().save("screenshots/art-dark.png"));
+        QVERIFY(art->property("artLoaded").toBool());
+        QVERIFY(art->property("artResource").toString().endsWith("-dark.jpg"));
+        navigation->setCurrentRow(5);
+        QTest::qWait(60);
+        QVERIFY(window.grab().save("screenshots/help-dark.png"));
+        InstallWindow installer([] { return false; });
+        installer.show();
+        QTest::qWait(60);
+        installer.grab();
+        auto *installationArt = installer.findChild<ArtPanel *>();
+        QVERIFY(installationArt && installationArt->property("artLoaded").toBool());
+        installer.reject();
+        window.close();
     }
     void windowControlsAndFileLog() {
         MainWindow window;

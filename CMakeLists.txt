@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC OFF)
+set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
 if(MSVC)
@@ -36,6 +36,10 @@ set(SOURCES
     ServiceControl.cpp
     MoonFiles.cpp
     DiagnosticReport.cpp
+    ArtPanel.cpp
+    PeerCacheMaintenance.cpp
+    PeerPresentation.cpp
+    art.qrc
     HelpTab.cpp
     tabs/ServiceTab.cpp
     tabs/InfoTab.cpp
@@ -58,6 +62,9 @@ set(HEADERS
     ServiceControl.h
     MoonFiles.h
     DiagnosticReport.h
+    ArtPanel.h
+    PeerCacheMaintenance.h
+    PeerPresentation.h
     HelpTab.h
     tabs/ServiceTab.h
     tabs/InfoTab.h
@@ -108,7 +115,7 @@ if(ZEROTIER_BUILD_TESTS)
         target_compile_options(zerotier_gui_tests PRIVATE /utf-8)
     endif()
     add_test(NAME gui_regressions COMMAND zerotier_gui_tests
-        startupInstallationGate
+        startupInstallationGate artworkAndCacheEntry
         serviceProtectionMoonFilesAndHelp
         windowControlsAndFileLog reconcilePreservesInteraction
         renameSurvivesPollingAndRecreation detailsKeepAllFieldsAndStayNonModal
@@ -149,6 +156,25 @@ if(ZEROTIER_BUILD_TESTS)
     endif()
     add_test(NAME servicestartup COMMAND servicestartup_test)
     add_test(NAME diagnosticreport COMMAND diagnosticreport_test)
+    add_executable(peerpresentation_test tests/PeerPresentationTest.cpp PeerPresentation.cpp)
+    target_include_directories(peerpresentation_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(peerpresentation_test PRIVATE Qt6::Core)
+    if(MSVC)
+        target_compile_options(peerpresentation_test PRIVATE /utf-8)
+    endif()
+    add_test(NAME peerpresentation COMMAND peerpresentation_test)
+    add_executable(peercache_test tests/PeerCacheTest.cpp PeerCacheMaintenance.cpp ServiceControl.cpp ManagementClient.cpp ZeroTierClient.cpp AppLog.cpp)
+    target_include_directories(peercache_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(peercache_test PRIVATE Qt6::Widgets)
+    if(WIN32)
+        target_link_libraries(peercache_test PRIVATE shell32 advapi32)
+        target_compile_definitions(peercache_test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+    if(MSVC)
+        target_compile_options(peercache_test PRIVATE /utf-8)
+    endif()
+    add_test(NAME peercache COMMAND peercache_test)
+
     option(ZEROTIER_TEST_POWERSHELL "Run integration tests that launch PowerShell" OFF)
     if(ZEROTIER_TEST_POWERSHELL)
         add_test(NAME powershell_regressions COMMAND zerotier_gui_tests

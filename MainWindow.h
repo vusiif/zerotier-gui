@@ -21,6 +21,7 @@ public:
     bool beginOperation();
     void endOperation();
     bool operationBusy() const { return m_operationBusy; }
+    ServiceControl *serviceControl() const { return m_serviceControl; }
 private:
     void setupUi();
     QListWidget *m_navigation;

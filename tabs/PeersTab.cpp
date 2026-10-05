@@ -1,6 +1,9 @@
 #include "PeersTab.h"
 #include "../ZeroTierClient.h"
 #include <QJsonArray>
+#include <QDateTime>
+#include <QTreeWidget>
+#include "../PeerPresentation.h"
 #include <QShowEvent>
 
 PeersTab::PeersTab(MainWindow *mainWindow, QWidget *parent)
@@ -13,16 +16,20 @@ PeersTab::PeersTab(MainWindow *mainWindow, QWidget *parent)
         QList<TableRow> rows;
         for (const auto &peer : document.array()) {
             const auto object = peer.toObject();
-            bool direct = false;
-            for (const auto &path : object["paths"].toArray())
-                if (path.toObject()["active"].toBool()) direct = true;
-            const int latency = object["latency"].toInt(-1);
             const QString id = object["address"].toString();
+            const auto values = PeerPresentation::columns(object, QDateTime::currentMSecsSinceEpoch());
             rows.append({id, {id, ZeroTier::translate(object["role"].toString()),
-                ZeroTier::translate(direct ? "DIRECT" : "RELAY"),
-                latency < 0 ? QStringLiteral("—") : QString::number(latency)}, object});
+                ZeroTier::translate(values[5]), values[2]}, object});
         }
         setRows(rows);
+        for (int i = 0; i < tree()->topLevelItemCount(); ++i) {
+            auto *item = tree()->topLevelItem(i);
+            for (const auto &row : rows) {
+                if (item->text(1) != row.id) continue;
+                item->setToolTip(3, PeerPresentation::pathDetails(row.details));
+                break;
+            }
+        }
     });
 }
 

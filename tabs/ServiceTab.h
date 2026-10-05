@@ -4,6 +4,7 @@ class MainWindow;
 class JsonPoller;
 class QLabel;
 class QPushButton;
+class PeerCacheMaintenance;
 class ServiceTab : public QWidget {
     Q_OBJECT
 public:
@@ -15,6 +16,7 @@ private:
     void changeService(const QString &action);
     void packageAction(bool uninstall);
     void updateButtons();
+    void clearPeerCache();
     MainWindow *m_main;
     JsonPoller *m_poller;
     QLabel *m_installation;
@@ -25,6 +27,8 @@ private:
     QPushButton *m_start;
     QPushButton *m_stop;
     QPushButton *m_restart;
+    QPushButton *m_cache;
+    PeerCacheMaintenance *m_cacheMaintenance;
     bool m_installed = false;
     bool m_busy = false;
 };
