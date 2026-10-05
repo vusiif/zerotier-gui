@@ -42,6 +42,7 @@ Copy-Item -LiteralPath $RuntimeInstaller -Destination (Join-Path $staging 'vc_re
 if ($LASTEXITCODE -ne 0) { throw "Qt deployment failed. Staging retained at $staging" }
 $licenseDirectory = Join-Path $staging 'licenses'
 New-Item -ItemType Directory -Path $licenseDirectory | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'ElaWidgetTools-main/LICENSE') -Destination (Join-Path $licenseDirectory 'ElaWidgetTools-MIT.txt')
 $qtVersion = Split-Path (Split-Path $QtDirectory -Parent) -Leaf
 $qtRoot = Split-Path (Split-Path $QtDirectory -Parent) -Parent
 $qtDocs = Join-Path $qtRoot "Docs/Qt-$qtVersion/qtdoc"
@@ -66,7 +67,7 @@ https://aka.ms/vs/17/release/vc_redist.x64.exe
 https://github.com/vusiif/zerotier-gui
 https://gitee.com/vusiif/zerotier-gui
 
-本包使用 Qt $qtVersion 动态库，许可证见 licenses。
+本包使用 Qt $qtVersion 动态库，以及静态链接的 ElaWidgetTools (MIT)，许可证见 licenses。
 Qt 官方源代码：https://download.qt.io/official_releases/qt/
 Qt 第三方许可说明：https://doc.qt.io/qt-6/licenses-used-in-qt.html
 本包不限制为调试修改 Qt 库而进行逆向工程，也不禁止替换兼容动态库。

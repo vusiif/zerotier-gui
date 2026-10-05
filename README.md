@@ -70,3 +70,5 @@ Publish 使用与构建相同的动态 Qt SDK，部署 DLL、平台插件、许�
 服务页恢复 Peers 缓存维护：读取 CLI 实际 homeDir，停止服务后将 peers.d 改名备份，再确认服务恢复运行。节点身份、网络和 Moon 配置保留。服务、帮助和安装页使用内嵌背景，随深浅主题切换；表格页保留可用空间。Peers 根据 preferred/tunneled 判断连接类型，缺失字段显示未知，路径原始字段可在提示和详情中查看。
 
 界面按钮与侧栏使用随主题变色的矢量图标，提供侧栏收放、页面/主题过渡和按钮悬停缓动；轮询更新保持静默。
+
+标题栏使用原版 ElaWidgetTools：汉堡、置顶、主题与窗口控制按钮同排，透明无边框；底部不显示状态栏。操作提示短暂显示，日志仅写文件。Ela 以 MIT 许可静态链接，源码保存在 ElaWidgetTools-main/ElaWidgetTools；构建需要当前 Qt SDK 的 WidgetsPrivate 组件。

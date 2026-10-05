@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Widgets WidgetsPrivate Concurrent)
 if(MSVC)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set(CMAKE_CXX_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
@@ -19,6 +19,14 @@ endif()
 get_target_property(QT_CORE_LIBRARY_TYPE Qt6::Core TYPE)
 if(MSVC AND QT_CORE_LIBRARY_TYPE STREQUAL "STATIC_LIBRARY")
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+# Reuse the original Ela app bar, including native window hit testing.
+set(QT_VERSION_MAJOR 6)
+set(ELAWIDGETTOOLS_BUILD_STATIC_LIB ON CACHE BOOL "Link Ela into the executable" FORCE)
+add_subdirectory(ElaWidgetTools-main/ElaWidgetTools EXCLUDE_FROM_ALL)
+if(MSVC)
+    target_compile_options(ElaWidgetTools PRIVATE /utf-8)
 endif()
 
 set(SOURCES
@@ -76,7 +84,7 @@ set(HEADERS
 )
 
 qt_add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Concurrent)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Concurrent Ela::WidgetTools)
 if(QT_CORE_LIBRARY_TYPE STREQUAL "STATIC_LIBRARY")
     # Keep the headless smoke test available in the standalone executable too.
     qt_import_plugins(${PROJECT_NAME} INCLUDE Qt6::QOffscreenIntegrationPlugin)
@@ -103,7 +111,7 @@ if(ZEROTIER_BUILD_TESTS)
     set(TEST_SOURCES ${SOURCES})
     list(REMOVE_ITEM TEST_SOURCES main.cpp)
     qt_add_executable(zerotier_gui_tests tests/GuiTests.cpp ${TEST_SOURCES} ${HEADERS})
-    target_link_libraries(zerotier_gui_tests PRIVATE Qt6::Widgets Qt6::Test Qt6::Concurrent)
+    target_link_libraries(zerotier_gui_tests PRIVATE Qt6::Widgets Qt6::Test Qt6::Concurrent Ela::WidgetTools)
     if(QT_CORE_LIBRARY_TYPE STREQUAL "STATIC_LIBRARY")
         qt_import_plugins(zerotier_gui_tests INCLUDE Qt6::QOffscreenIntegrationPlugin)
     endif()

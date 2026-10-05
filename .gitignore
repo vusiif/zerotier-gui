@@ -22,3 +22,6 @@ networks.d/
 moons.d/
 zerotier_dump.txt
 zerotier-diagnostics*.txt
+
+screenshots/
+native-title-results.txt

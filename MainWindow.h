@@ -9,6 +9,8 @@ class QSplitter;
 class QWidget;
 class QLabel;
 class ServiceControl;
+class ElaAppBar;
+class QTimer;
 class QVariantAnimation;
 
 class MainWindow : public QMainWindow {
@@ -18,6 +20,7 @@ public:
     void runService(const QString &action, std::function<void(bool)> finished = {});
     void runElevatedScript(const QString &label, const QString &script,
                            std::function<void(bool)> finished = {});
+    void showNotice(const QString &message, int duration = 5000);
     void appendOutput(const QString &text);
     bool beginOperation();
     void endOperation();
@@ -25,6 +28,15 @@ public:
     ServiceControl *serviceControl() const { return m_serviceControl; }
 private:
     void setupUi();
+    ElaAppBar *m_appBar = nullptr;
+    QLabel *m_notice = nullptr;
+    QTimer *m_noticeTimer = nullptr;
+protected:
+#ifdef Q_OS_WIN
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+#endif
+    void resizeEvent(QResizeEvent *event) override;
+private:
     QListWidget *m_navigation;
     QStackedWidget *m_pages;
     QSplitter *m_horizontal;

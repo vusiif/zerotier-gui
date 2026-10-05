@@ -4,7 +4,6 @@
 #include "../ManagementClient.h"
 #include "../NetworkMonitor.h"
 #include "../NetworkSettingsDialog.h"
-#include <QStatusBar>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QLineEdit>
@@ -42,11 +41,11 @@ NetworkTab::NetworkTab(MainWindow *mainWindow, QWidget *parent)
     connect(m_monitor, &NetworkMonitor::automaticallyLeft, this, [this](const QString &id) {
         const auto message = QStringLiteral("网络 %1 不存在，已自动退出。").arg(id);
         m_main->appendOutput(message);
-        m_main->statusBar()->showMessage(message, 15000);
+        m_main->showNotice(message, 15000);
         m_poller->refresh();
     });
     connect(m_monitor, &NetworkMonitor::automaticLeaveFailed, this, [this](const QString &id, const QString &reason) {
-        m_main->statusBar()->showMessage(QStringLiteral("网络 %1 自动退出失败：%2").arg(id, reason), 15000);
+        m_main->showNotice(QStringLiteral("网络 %1 自动退出失败：%2").arg(id, reason), 15000);
     });
     bodyLayout()->insertLayout(0, actions);
     connect(m_join, &QPushButton::clicked, this, &NetworkTab::joinNetwork);

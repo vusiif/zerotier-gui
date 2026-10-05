@@ -1,3 +1,7 @@
+#include "ElaIconButton.h"
+#include "ElaAppBar.h"
+#include "ElaToolButton.h"
+#include <QResizeEvent>
 #include "UiMotion.h"
 #include <QVariantAnimation>
 #include "MainWindow.h"
@@ -10,7 +14,6 @@
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QStyle>
-#include <QStatusBar>
 #include "ZeroTierClient.h"
 #include "tabs/ServiceTab.h"
 #include "tabs/InfoTab.h"
@@ -56,54 +59,54 @@ void MainWindow::setupUi()
     auto *layout = new QVBoxLayout(central);
     layout->setContentsMargins(10, 10, 10, 10);
     layout->setSpacing(8);
-    auto *toolbar = new QHBoxLayout;
-    auto *hamburger = new QToolButton;
-    hamburger->setObjectName("sidebarToggle");
-    hamburger->setText(QStringLiteral("☰"));
+    m_appBar = new ElaAppBar(this);
+    m_appBar->setWindowButtonFlags(ElaAppBarType::NavigationButtonHint |
+        ElaAppBarType::StayTopButtonHint | ElaAppBarType::ThemeChangeButtonHint |
+        ElaAppBarType::MinimizeButtonHint | ElaAppBarType::MaximizeButtonHint | ElaAppBarType::CloseButtonHint);
+    // Let closeEvent enforce the operation lock; Ela's default also closes the
+    // native window handle, even when a QWidget close event is rejected.
+    m_appBar->setIsDefaultClosed(false);
+    connect(m_appBar, &ElaAppBar::closeButtonClicked, this, [this] { close(); });
+    for (auto *button : m_appBar->findChildren<ElaToolButton *>()) button->setBorderRadius(0);
+    auto *closeButton = m_appBar->findChild<ElaIconButton *>("closeWindowButton");
+    closeButton->setBorderRadius(0);
+    closeButton->setToolTip(QStringLiteral("关闭"));
+    closeButton->setAccessibleName(QStringLiteral("关闭窗口"));
+    auto *minimize = m_appBar->findChild<ElaToolButton *>("minimizeButton");
+    auto *maximize = m_appBar->findChild<ElaToolButton *>("maximizeButton");
+    minimize->setToolTip(QStringLiteral("最小化"));
+    minimize->setAccessibleName(QStringLiteral("最小化窗口"));
+    maximize->setToolTip(QStringLiteral("最大化或还原"));
+    maximize->setAccessibleName(QStringLiteral("最大化或还原窗口"));
+    auto *hamburger = m_appBar->findChild<ElaToolButton *>("sidebarToggle");
+    auto *theme = m_appBar->findChild<ElaToolButton *>("themeToggle");
+    auto *pin = m_appBar->findChild<ElaToolButton *>("alwaysOnTopToggle");
+    hamburger->setCheckable(true);
     hamburger->setAccessibleName(QStringLiteral("折叠或展开侧栏"));
     hamburger->setToolTip(QStringLiteral("折叠侧栏"));
-    hamburger->setCheckable(true);
-    toolbar->addWidget(hamburger);
-    toolbar->addStretch();
-    auto *theme = new QToolButton;
-    theme->setObjectName("themeToggle");
-    theme->setText(QStringLiteral("深色主题"));
     theme->setCheckable(true);
     theme->setChecked(qApp->property("darkTheme").toBool());
     theme->setAccessibleName(QStringLiteral("切换深浅主题"));
     auto updateThemeText = [theme](bool dark) {
-        theme->setText(dark ? QStringLiteral("浅色主题") : QStringLiteral("深色主题"));
-        theme->setToolTip(theme->text());
+        theme->setToolTip(dark ? QStringLiteral("浅色主题") : QStringLiteral("深色主题"));
     };
     updateThemeText(theme->isChecked());
     connect(theme, &QToolButton::toggled, this, [this, updateThemeText](bool dark) {
-        UiMotion::transition(centralWidget(), [updateThemeText, dark] {
+        UiMotion::transition(this, [updateThemeText, dark] {
             setAppDarkTheme(*qApp, dark);
             updateThemeText(dark);
         }, true);
         QSettings().setValue("appearance/dark", dark);
     });
-    toolbar->addWidget(theme);
-    auto *pin = new QToolButton;
-    pin->setObjectName("alwaysOnTopToggle");
-    pin->setText(QStringLiteral("置顶"));
-    pin->setToolTip(QStringLiteral("窗口始终置顶"));
-    pin->setAccessibleName(QStringLiteral("窗口始终置顶"));
     pin->setCheckable(true);
-    connect(pin, &QToolButton::toggled, this, [this, pin](bool on) {
-        const auto geometry = saveGeometry();
-        const auto state = windowState();
-        const bool visible = isVisible();
-        setWindowFlag(Qt::WindowStaysOnTopHint, on);
-        restoreGeometry(geometry);
-        setWindowState(state);
-        if (visible) show();
-        pin->setText(on ? QStringLiteral("取消置顶") : QStringLiteral("置顶"));
-        QSettings().setValue("window/alwaysOnTop", on);
+    pin->setAccessibleName(QStringLiteral("窗口始终置顶"));
+    pin->setToolTip(QStringLiteral("窗口始终置顶"));
+    connect(m_appBar, &ElaAppBar::pIsStayTopChanged, this, [this, pin] {
+        pin->setChecked(m_appBar->getIsStayTop());
+        pin->setToolTip(m_appBar->getIsStayTop() ? QStringLiteral("取消置顶") : QStringLiteral("窗口始终置顶"));
+        QSettings().setValue("window/alwaysOnTop", m_appBar->getIsStayTop());
     });
-    pin->setChecked(QSettings().value("window/alwaysOnTop", false).toBool());
-    toolbar->addWidget(pin);
-    layout->addLayout(toolbar);
+    m_appBar->setIsStayTop(QSettings().value("window/alwaysOnTop", false).toBool());
     connect(hamburger, &QToolButton::toggled, this, [this, hamburger](bool collapsed) {
         setSidebarCollapsed(collapsed);
         hamburger->setToolTip(collapsed ? QStringLiteral("展开侧栏") : QStringLiteral("折叠侧栏"));
@@ -168,6 +171,14 @@ void MainWindow::setupUi()
     m_sidebarWidth = QSettings().value("window/sidebarWidth", 190).toInt();
     layout->addWidget(m_horizontal, 1);
     setCentralWidget(central);
+    m_notice = new QLabel(central);
+    m_notice->setObjectName("operationNotice");
+    m_notice->setWordWrap(true);
+    m_notice->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_notice->hide();
+    m_noticeTimer = new QTimer(this);
+    m_noticeTimer->setSingleShot(true);
+    connect(m_noticeTimer, &QTimer::timeout, m_notice, &QWidget::hide);
     const auto geometry = QSettings().value("window/geometry").toByteArray();
     if (!geometry.isEmpty()) restoreGeometry(geometry);
     hamburger->setChecked(QSettings().value("window/sidebarCollapsed", false).toBool());
@@ -176,7 +187,7 @@ void MainWindow::setupUi()
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     if (m_operationBusy) {
-        statusBar()->showMessage(QStringLiteral("请等待当前操作完成后关闭。"), 5000);
+        showNotice(QStringLiteral("请等待当前操作完成后关闭。"), 5000);
         event->ignore();
         return;
     }
@@ -194,7 +205,7 @@ void MainWindow::runService(const QString &action, std::function<void(bool)> fin
         endOperation();
         const auto message = ok ? QStringLiteral("服务 %1 操作完成。").arg(action) : error;
         appendOutput(message);
-        statusBar()->showMessage(message, ok ? 5000 : 15000);
+        showNotice(message, ok ? 5000 : 15000);
         if (finished) finished(ok);
     });
 }
@@ -202,7 +213,7 @@ void MainWindow::runService(const QString &action, std::function<void(bool)> fin
 bool MainWindow::beginOperation()
 {
     if (m_operationBusy) {
-        statusBar()->showMessage(QStringLiteral("其他操作正在执行，请稍后重试。"), 5000);
+        showNotice(QStringLiteral("其他操作正在执行，请稍后重试。"), 5000);
         return false;
     }
     m_operationBusy = true;
@@ -242,7 +253,7 @@ void MainWindow::runElevatedScript(const QString &label, const QString &script,
         }
         const auto message = label + (ok ? QStringLiteral("：完成") : QStringLiteral("：未完成，请检查权限、网络或服务状态。"));
         appendOutput(message);
-        statusBar()->showMessage(message, 15000);
+        showNotice(message, 15000);
         if (finished) finished(ok);
         process->deleteLater();
     };
@@ -307,3 +318,34 @@ void MainWindow::setSidebarCollapsed(bool collapsed)
     }
     QSettings().setValue("window/sidebarCollapsed", collapsed);
 }
+
+void MainWindow::showNotice(const QString &message, int duration)
+{
+    if (!m_notice || message.isEmpty()) return;
+    m_notice->setText(message);
+    m_notice->setFixedWidth(qMin(600, qMax(200, centralWidget()->width() - 40)));
+    m_notice->adjustSize();
+    m_notice->move((centralWidget()->width() - m_notice->width()) / 2, 8);
+    m_notice->show();
+    m_notice->raise();
+    m_noticeTimer->start(duration > 0 ? duration : 15000);
+}
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    if (m_notice && m_notice->isVisible()) {
+        m_notice->setFixedWidth(qMin(600, qMax(200, centralWidget()->width() - 40)));
+        m_notice->adjustSize();
+        m_notice->move((centralWidget()->width() - m_notice->width()) / 2, 8);
+    }
+}
+#ifdef Q_OS_WIN
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)
+{
+    if (m_appBar) {
+        const int handled = m_appBar->takeOverNativeEvent(eventType, message, result);
+        if (handled != -1) return handled != 0;
+    }
+    return QMainWindow::nativeEvent(eventType, message, result);
+}
+#endif

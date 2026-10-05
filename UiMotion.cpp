@@ -80,7 +80,7 @@ public:
     using QObject::QObject;
     bool eventFilter(QObject *object, QEvent *event) override {
         auto *button=qobject_cast<QAbstractButton *>(object);
-        if (!button) return false;
+        if (!button || button->inherits("ElaToolButton") || button->inherits("ElaIconButton")) return false;
         if (event->type()==QEvent::Polish && button->icon().isNull() && !button->text().isEmpty()) {
             button->setIcon(UiMotion::icon(kind(button->text())));
             button->setIconSize(QSize(18,18));

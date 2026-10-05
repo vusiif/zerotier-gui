@@ -1,3 +1,5 @@
+#include "ElaAppBar.h"
+#include <QStatusBar>
 #include <QLabel>
 #include <QVariantAnimation>
 #include "../ArtPanel.h"
@@ -243,14 +245,43 @@ private slots:
         QVERIFY(theme && sidebar && pin && navigation && splitter);
         QCOMPARE(navigation->currentRow(), 0);
         QVERIFY(window.findChild<QPushButton *>("peerCacheButton")->isVisible());
-        QVERIFY(!theme->icon().isNull() && !sidebar->icon().isNull() && !pin->icon().isNull());
+        auto *appBar = window.findChild<ElaAppBar *>();
+        QVERIFY(appBar);
+        QVERIFY(!window.findChild<QStatusBar *>());
+        QCOMPARE(theme->parentWidget(), appBar);
+        QCOMPARE(sidebar->parentWidget(), appBar);
+        QCOMPARE(pin->parentWidget(), appBar);
+        auto *maximize = window.findChild<QToolButton *>("maximizeButton");
+        auto *minimize = window.findChild<QToolButton *>("minimizeButton");
+        auto *close = window.findChild<QPushButton *>("closeWindowButton");
+        QVERIFY(maximize && minimize && close);
+        QCOMPARE(theme->geometry().center().y(), maximize->geometry().center().y());
+        QCOMPARE(pin->geometry().center().y(), maximize->geometry().center().y());
+        QCOMPARE(sidebar->geometry().center().y(), maximize->geometry().center().y());
+        maximize->click();
+        QTRY_VERIFY(window.isMaximized());
+        maximize->click();
+        QTRY_VERIFY(!window.isMaximized());
+        minimize->click();
+        QTRY_VERIFY(window.isMinimized());
+        window.showNormal();
+        QVERIFY(window.beginOperation());
+        close->click();
+        QVERIFY(window.isVisible());
+        QVERIFY(window.operationBusy());
+        window.endOperation();
+        window.showNotice(QStringLiteral("标题栏验收完成"), 1);
+        QTest::qWait(30);
+        QVERIFY(!window.findChild<QStatusBar *>());
         for (auto *button : window.findChildren<QPushButton *>())
-            if (button->isVisible()) QVERIFY(!button->icon().isNull());
+            if (button->isVisible() && !button->inherits("ElaIconButton")) QVERIFY(!button->icon().isNull());
         theme->click();
         QVERIFY(qApp->property("darkTheme").toBool());
         QVERIFY(qApp->palette().color(QPalette::Text).lightness() > 180);
         QCOMPARE(QSettings().value("appearance/dark").toBool(), true);
         QVERIFY(QDir().mkpath("screenshots"));
+        QTRY_VERIFY(!window.findChild<QWidget *>("transitionSnapshot"));
+        window.showNotice(QString(), 1);
         QVERIFY(window.grab().save("screenshots/dark-restored.png"));
         QMessageBox dialog(QMessageBox::Question, "Test", "Text", QMessageBox::Yes | QMessageBox::No);
         QVERIFY(dialog.button(QMessageBox::Yes)->palette().color(QPalette::ButtonText).lightness() > 180);
@@ -268,10 +299,10 @@ private slots:
         QVERIFY(!navigation->item(0)->text().isEmpty());
         QTRY_VERIFY(splitter->sizes()[0] >= 130);
         pin->click();
-        QVERIFY(window.windowFlags().testFlag(Qt::WindowStaysOnTopHint));
+        QVERIFY(appBar->getIsStayTop());
         QVERIFY(window.isVisible());
         pin->click();
-        QVERIFY(!window.windowFlags().testFlag(Qt::WindowStaysOnTopHint));
+        QVERIFY(!appBar->getIsStayTop());
         QVERIFY(!window.findChild<QTextEdit *>("outputConsole"));
         window.appendOutput("file-log-marker");
         QFile log(AppLog::path());
