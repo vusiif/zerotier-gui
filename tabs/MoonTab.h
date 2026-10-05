@@ -1,22 +1,17 @@
 #pragma once
-
-#include <QWidget>
-
-class QListWidget;
-class QProcess;
+#include "../DataTable.h"
 class MainWindow;
-
-class MoonTab : public QWidget {
+class JsonPoller;
+class QPushButton;
+class MoonTab : public DataTable {
     Q_OBJECT
-
 public:
     explicit MoonTab(MainWindow *mainWindow, QWidget *parent = nullptr);
-
+protected:
+    void showEvent(QShowEvent *event) override;
 private:
     void addMoon();
-    void refreshMoonList();
-
     MainWindow *m_main;
-    QListWidget *m_moonList;
-    QProcess *m_proc;
+    JsonPoller *m_poller;
+    QPushButton *m_add;
 };

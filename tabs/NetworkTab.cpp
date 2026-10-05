@@ -1,129 +1,91 @@
 #include "NetworkTab.h"
 #include "../MainWindow.h"
-
-#include <QVBoxLayout>
+#include "../ZeroTierClient.h"
 #include <QHBoxLayout>
-#include <QPushButton>
-#include <QLineEdit>
-#include <QTreeWidget>
-#include <QJsonDocument>
 #include <QJsonArray>
-#include <QJsonObject>
-#include <QProcess>
+#include <QLineEdit>
 #include <QMessageBox>
-#include <QStandardPaths>
-#include <QFile>
-
-static const char *ZTCLI = "zerotier-cli";
-
-static QString findZt()
-{
-    QString p = QStandardPaths::findExecutable(ZTCLI);
-    if (!p.isEmpty()) return p;
-    QString fb = "C:/ProgramData/ZeroTier/One/zerotier-cli_x64.exe";
-    return QFile::exists(fb) ? fb : ZTCLI;
-}
+#include <QPushButton>
+#include <QRegularExpression>
+#include <QShowEvent>
+#include <QVBoxLayout>
 
 NetworkTab::NetworkTab(MainWindow *mainWindow, QWidget *parent)
-    : QWidget(parent), m_main(mainWindow), m_proc(new QProcess(this))
+    : DataTable("networks", {"名称", "网络 ID", "状态", "分配的 IP"}, parent), m_main(mainWindow)
 {
-    auto *layout = new QVBoxLayout(this);
-
-    auto *joinLayout = new QHBoxLayout;
+    auto *actions = new QHBoxLayout;
     m_input = new QLineEdit;
-    m_input->setPlaceholderText("16-digit Network ID...");
-    joinLayout->addWidget(m_input);
-
-    auto *btnJoin = new QPushButton("Join");
-    connect(btnJoin, &QPushButton::clicked, this, &NetworkTab::joinNetwork);
-    joinLayout->addWidget(btnJoin);
-
-    auto *btnLeave = new QPushButton("Leave");
-    connect(btnLeave, &QPushButton::clicked, this, &NetworkTab::leaveNetwork);
-    joinLayout->addWidget(btnLeave);
-
-    layout->addLayout(joinLayout);
-
-    auto *btnRefresh = new QPushButton("Refresh");
-    connect(btnRefresh, &QPushButton::clicked, this, &NetworkTab::refresh);
-    layout->addWidget(btnRefresh);
-
-    m_tree = new QTreeWidget;
-    m_tree->setHeaderLabels({"Network ID", "Name", "Status", "Type", "Assigned IPs"});
-    m_tree->setRootIsDecorated(false);
-    m_tree->setAlternatingRowColors(true);
-    layout->addWidget(m_tree);
-
-    connect(m_proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this](int, QProcess::ExitStatus) {
-        QByteArray data = m_proc->readAllStandardOutput();
-        QJsonParseError err;
-        QJsonDocument doc = QJsonDocument::fromJson(data, &err);
-        if (err.error != QJsonParseError::NoError || !doc.isArray()) {
-            m_main->appendOutput(QString::fromLocal8Bit(data));
-            return;
+    m_input->setObjectName("networkIdInput");
+    m_input->setPlaceholderText(QStringLiteral("输入 16 位十六进制网络 ID"));
+    m_input->setMaxLength(16);
+    actions->addWidget(m_input, 1);
+    m_join = new QPushButton(QStringLiteral("加入网络"));
+    m_leave = new QPushButton(QStringLiteral("退出网络"));
+    actions->addWidget(m_join);
+    actions->addWidget(m_leave);
+    bodyLayout()->insertLayout(0, actions);
+    connect(m_join, &QPushButton::clicked, this, &NetworkTab::joinNetwork);
+    connect(m_leave, &QPushButton::clicked, this, &NetworkTab::leaveNetwork);
+    connect(m_input, &QLineEdit::returnPressed, this, &NetworkTab::joinNetwork);
+    m_poller = new JsonPoller(this, "listnetworks");
+    connect(m_poller, &JsonPoller::availabilityChanged, this, &DataTable::setAvailability);
+    connect(m_poller, &JsonPoller::updated, this, [this](const QJsonDocument &document) {
+        QList<TableRow> rows;
+        for (const auto &network : document.array()) {
+            const auto object = network.toObject();
+            const QString id = object["nwid"].toString(object["id"].toString());
+            QStringList addresses;
+            for (const auto &address : object["assignedAddresses"].toArray()) addresses << address.toString();
+            rows.append({id, {id, ZeroTier::translate(object["status"].toString()),
+                addresses.isEmpty() ? QStringLiteral("—") : addresses.join(", ")}, object});
         }
-
-        m_tree->clear();
-        QJsonArray nets = doc.array();
-        for (const auto &n : nets) {
-            QJsonObject o = n.toObject();
-            auto *item = new QTreeWidgetItem(m_tree);
-            item->setText(0, o["nwid"].toString());
-            item->setText(1, o["name"].toString());
-            item->setText(2, o["status"].toString());
-            item->setText(3, o["type"].toString());
-            QJsonArray addrs = o["assignedAddresses"].toArray();
-            QStringList sl;
-            for (const auto &a : addrs) sl << a.toString();
-            item->setText(4, sl.join(", "));
-        }
-        m_tree->resizeColumnToContents(0);
-        m_main->appendOutput(QString("Loaded %1 networks.\n").arg(nets.size()));
+        setRows(rows);
     });
-
-    refresh();
 }
 
-void NetworkTab::refresh()
+void NetworkTab::showEvent(QShowEvent *event)
 {
-    if (m_proc->state() != QProcess::NotRunning) return;
-    m_main->appendOutput(">> zerotier-cli -j listnetworks\n");
-    m_proc->start(findZt(), {"-j", "listnetworks"});
+    DataTable::showEvent(event);
+    m_poller->refresh();
 }
 
 void NetworkTab::joinNetwork()
 {
-    QString id = m_input->text().trimmed();
-    if (id.isEmpty()) {
-        QMessageBox::warning(this, "Input", "Enter a Network ID.");
-        return;
-    }
-    m_main->appendOutput(">> zerotier-cli join " + id + "\n");
-    auto *p = new QProcess(this);
-    connect(p, &QProcess::readyReadStandardOutput, this, [this, p]() {
-        m_main->appendOutput(QString::fromLocal8Bit(p->readAllStandardOutput()));
-    });
-    connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            p, &QObject::deleteLater);
-    p->start(findZt(), {"join", id});
-    m_input->clear();
+    operate("join", m_input->text().trimmed().toLower());
 }
 
 void NetworkTab::leaveNetwork()
 {
-    QString id = m_input->text().trimmed();
-    if (id.isEmpty()) {
-        QMessageBox::warning(this, "Input", "Enter a Network ID.");
+    const QString id = selectedId().isEmpty() ? m_input->text().trimmed().toLower() : selectedId();
+    if (!QRegularExpression("^[0-9a-fA-F]{16}$").match(id).hasMatch()) {
+        QMessageBox::warning(this, QStringLiteral("退出网络"), QStringLiteral("请选择一个网络或输入完整的 16 位网络 ID。"));
         return;
     }
-    m_main->appendOutput(">> zerotier-cli leave " + id + "\n");
-    auto *p = new QProcess(this);
-    connect(p, &QProcess::readyReadStandardOutput, this, [this, p]() {
-        m_main->appendOutput(QString::fromLocal8Bit(p->readAllStandardOutput()));
+    if (QMessageBox::question(this, QStringLiteral("退出网络"), QStringLiteral("确定退出网络 %1？").arg(id),
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    operate("leave", id);
+}
+
+void NetworkTab::operate(const QString &action, const QString &id)
+{
+    if (m_operating) return;
+    if (!QRegularExpression("^[0-9a-fA-F]{16}$").match(id).hasMatch()) {
+        QMessageBox::warning(this, QStringLiteral("网络 ID"), QStringLiteral("请输入完整的 16 位十六进制网络 ID。"));
+        return;
+    }
+    m_operating = true;
+    m_join->setEnabled(false);
+    m_leave->setEnabled(false);
+    const QString submittedInput = m_input->text();
+    ZeroTier::command(this, {action, id}, [this, action, submittedInput](bool ok, const QString &output) {
+        m_operating = false;
+        m_join->setEnabled(true);
+        m_leave->setEnabled(true);
+        m_main->appendOutput((action == "join" ? QStringLiteral("加入网络：") : QStringLiteral("退出网络：")) + output + '\n');
+        if (!ok) QMessageBox::warning(this, QStringLiteral("操作失败"), output.isEmpty() ? QStringLiteral("请检查 ZeroTier 服务和管理员权限。") : output);
+        else {
+            if (m_input->text() == submittedInput) m_input->clear();
+            m_poller->refresh();
+        }
     });
-    connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            p, &QObject::deleteLater);
-    p->start(findZt(), {"leave", id});
-    m_input->clear();
 }

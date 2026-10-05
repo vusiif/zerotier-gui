@@ -1,21 +1,13 @@
 #pragma once
-
-#include <QWidget>
-
-class QTreeWidget;
-class QProcess;
+#include "../DataTable.h"
 class MainWindow;
-
-class PeersTab : public QWidget {
+class JsonPoller;
+class PeersTab : public DataTable {
     Q_OBJECT
-
 public:
     explicit PeersTab(MainWindow *mainWindow, QWidget *parent = nullptr);
-
+protected:
+    void showEvent(QShowEvent *event) override;
 private:
-    void refresh();
-
-    MainWindow *m_main;
-    QTreeWidget *m_tree;
-    QProcess *m_proc;
+    JsonPoller *m_poller;
 };

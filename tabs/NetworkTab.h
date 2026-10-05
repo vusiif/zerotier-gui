@@ -1,25 +1,23 @@
 #pragma once
-
-#include <QWidget>
-
-class QTreeWidget;
-class QLineEdit;
-class QProcess;
+#include "../DataTable.h"
 class MainWindow;
-
-class NetworkTab : public QWidget {
+class JsonPoller;
+class QLineEdit;
+class QPushButton;
+class NetworkTab : public DataTable {
     Q_OBJECT
-
 public:
     explicit NetworkTab(MainWindow *mainWindow, QWidget *parent = nullptr);
-
+protected:
+    void showEvent(QShowEvent *event) override;
 private:
-    void refresh();
     void joinNetwork();
     void leaveNetwork();
-
+    void operate(const QString &action, const QString &id);
     MainWindow *m_main;
-    QTreeWidget *m_tree;
+    JsonPoller *m_poller;
     QLineEdit *m_input;
-    QProcess *m_proc;
+    QPushButton *m_join;
+    QPushButton *m_leave;
+    bool m_operating = false;
 };

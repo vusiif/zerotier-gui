@@ -1,26 +1,26 @@
 #pragma once
 
 #include <QMainWindow>
-#include <QTabWidget>
-#include <QTextEdit>
-#include <QVector>
+#include <functional>
+
+class QListWidget;
+class QStackedWidget;
+class QSplitter;
+class QTextEdit;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
-
 public:
     explicit MainWindow(QWidget *parent = nullptr);
-
-    void runService(const QString &action);
+    void runService(const QString &action, std::function<void(bool)> finished = {});
+    void runElevatedScript(const QString &label, const QString &script,
+                           std::function<void(bool)> finished = {});
     void appendOutput(const QString &text);
-
 private:
     void setupUi();
-    void onTabChanged(int index);
-    void createTabContent(int index);
-
-    QTabWidget *m_tabWidget;
+    QListWidget *m_navigation;
+    QStackedWidget *m_pages;
+    QSplitter *m_horizontal;
     QTextEdit *m_outputConsole;
-    QVector<bool> m_tabCreated;
-    static constexpr int MAX_OUTPUT_LINES = 300;
+    void closeEvent(QCloseEvent *event) override;
 };
