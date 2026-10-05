@@ -157,7 +157,7 @@ void MainWindow::setupUi()
     connect(m_navigation, &QListWidget::currentRowChanged, m_pages, [this](int row) {
         UiMotion::transition(m_pages, [this, row] { m_pages->setCurrentIndex(row); });
     });
-    m_navigation->setCurrentRow(ZeroTier::executable().isEmpty() ? 0 : 3);
+    m_navigation->setCurrentRow(0);
     m_horizontal->addWidget(sidebar);
     m_horizontal->addWidget(m_pages);
     m_horizontal->setStretchFactor(0, 0);

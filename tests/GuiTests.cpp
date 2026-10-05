@@ -241,6 +241,8 @@ private slots:
         auto *navigation = window.findChild<QListWidget *>("navigation");
         auto *splitter = window.findChild<QSplitter *>("mainSplitter");
         QVERIFY(theme && sidebar && pin && navigation && splitter);
+        QCOMPARE(navigation->currentRow(), 0);
+        QVERIFY(window.findChild<QPushButton *>("peerCacheButton")->isVisible());
         QVERIFY(!theme->icon().isNull() && !sidebar->icon().isNull() && !pin->icon().isNull());
         for (auto *button : window.findChildren<QPushButton *>())
             if (button->isVisible()) QVERIFY(!button->icon().isNull());
