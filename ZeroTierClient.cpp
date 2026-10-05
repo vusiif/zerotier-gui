@@ -1,4 +1,6 @@
 #include "ZeroTierClient.h"
+#include "ManagementClient.h"
+#include "AppLog.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -163,32 +165,12 @@ void ZeroTier::command(QObject *owner, const QStringList &arguments,
         finished(false, QStringLiteral("未找到 ZeroTier，请先安装。"));
         return;
     }
-    auto *process = new QProcess(owner);
-    auto *timeout = new QTimer(process);
-    timeout->setSingleShot(true);
-    timeout->setInterval(15000);
-    auto completed = std::make_shared<bool>(false);
-    auto complete = [process, finished, completed](bool ok, const QString &text) {
-        if (*completed) return;
-        *completed = true;
-        finished(ok, text);
-        process->deleteLater();
-    };
-    QObject::connect(timeout, &QTimer::timeout, process, [process, complete] {
-        process->kill();
-        complete(false, QStringLiteral("操作超时，请检查 ZeroTier 服务。"));
+    auto *client = new ZeroTierClient(owner, program);
+    QObject::connect(client, &ZeroTierClient::log, client, [](const QString &text) { AppLog::write(text); });
+    client->run(arguments, [client, finished](bool ok, QByteArray output) {
+        finished(ok, QString::fromUtf8(output).trimmed());
+        client->deleteLater();
     });
-    QObject::connect(process, &QProcess::errorOccurred, process, [complete](QProcess::ProcessError error) {
-        if (error == QProcess::FailedToStart) complete(false, QStringLiteral("无法启动 ZeroTier 命令。"));
-    });
-    QObject::connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-                     process, [process, complete](int code, QProcess::ExitStatus status) {
-        const QString text = QString::fromLocal8Bit(process->readAllStandardOutput())
-                           + QString::fromLocal8Bit(process->readAllStandardError());
-        complete(code == 0 && status == QProcess::NormalExit, text.trimmed());
-    });
-    process->start(program, cliArguments(program, arguments));
-    timeout->start();
 }
 
 JsonPoller::JsonPoller(QWidget *owner, const QString &command, bool object)

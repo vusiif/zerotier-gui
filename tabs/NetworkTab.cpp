@@ -1,6 +1,10 @@
 #include "NetworkTab.h"
 #include "../MainWindow.h"
 #include "../ZeroTierClient.h"
+#include "../ManagementClient.h"
+#include "../NetworkMonitor.h"
+#include "../NetworkSettingsDialog.h"
+#include <QStatusBar>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QLineEdit>
@@ -23,6 +27,27 @@ NetworkTab::NetworkTab(MainWindow *mainWindow, QWidget *parent)
     m_leave = new QPushButton(QStringLiteral("退出网络"));
     actions->addWidget(m_join);
     actions->addWidget(m_leave);
+    m_settings = new QPushButton(QStringLiteral("网络设置"));
+    m_settings->setObjectName("networkSettingsButton");
+    m_settings->setEnabled(false);
+    actions->addWidget(m_settings);
+    connect(m_settings, &QPushButton::clicked, this, &NetworkTab::editSettings);
+    connect(tree(), &QTreeWidget::currentItemChanged, this, [this] {
+        m_settings->setEnabled(!selectedId().isEmpty() && !m_operating && !m_settingsOpen);
+    });
+    m_client = new ZeroTierClient(this);
+    connect(m_client, &ZeroTierClient::log, m_main, &MainWindow::appendOutput);
+    m_monitor = new NetworkMonitor(m_client, this, [this] { return !m_operating && !m_settingsOpen; });
+    connect(m_monitor, &NetworkMonitor::diagnostic, m_main, &MainWindow::appendOutput);
+    connect(m_monitor, &NetworkMonitor::automaticallyLeft, this, [this](const QString &id) {
+        const auto message = QStringLiteral("网络 %1 不存在，已自动退出。").arg(id);
+        m_main->appendOutput(message);
+        m_main->statusBar()->showMessage(message, 15000);
+        m_poller->refresh();
+    });
+    connect(m_monitor, &NetworkMonitor::automaticLeaveFailed, this, [this](const QString &id, const QString &reason) {
+        m_main->statusBar()->showMessage(QStringLiteral("网络 %1 自动退出失败：%2").arg(id, reason), 15000);
+    });
     bodyLayout()->insertLayout(0, actions);
     connect(m_join, &QPushButton::clicked, this, &NetworkTab::joinNetwork);
     connect(m_leave, &QPushButton::clicked, this, &NetworkTab::leaveNetwork);
@@ -68,7 +93,7 @@ void NetworkTab::leaveNetwork()
 
 void NetworkTab::operate(const QString &action, const QString &id)
 {
-    if (m_operating) return;
+    if (m_operating || m_settingsOpen) return;
     if (!QRegularExpression("^[0-9a-fA-F]{16}$").match(id).hasMatch()) {
         QMessageBox::warning(this, QStringLiteral("网络 ID"), QStringLiteral("请输入完整的 16 位十六进制网络 ID。"));
         return;
@@ -76,16 +101,37 @@ void NetworkTab::operate(const QString &action, const QString &id)
     m_operating = true;
     m_join->setEnabled(false);
     m_leave->setEnabled(false);
+    m_settings->setEnabled(false);
     const QString submittedInput = m_input->text();
-    ZeroTier::command(this, {action, id}, [this, action, submittedInput](bool ok, const QString &output) {
+    ZeroTier::command(this, {action, id}, [this, action, id, submittedInput](bool ok, const QString &output) {
         m_operating = false;
         m_join->setEnabled(true);
         m_leave->setEnabled(true);
+        m_settings->setEnabled(!selectedId().isEmpty());
         m_main->appendOutput((action == "join" ? QStringLiteral("加入网络：") : QStringLiteral("退出网络：")) + output + '\n');
         if (!ok) QMessageBox::warning(this, QStringLiteral("操作失败"), output.isEmpty() ? QStringLiteral("请检查 ZeroTier 服务和管理员权限。") : output);
         else {
+            if (action == "join") m_monitor->track(id);
+            else m_monitor->forget(id);
             if (m_input->text() == submittedInput) m_input->clear();
             m_poller->refresh();
         }
     });
+}
+
+void NetworkTab::editSettings()
+{
+    const auto id = selectedId();
+    if (id.isEmpty() || m_operating || m_settingsOpen) return;
+    m_settingsOpen = true;
+    m_join->setEnabled(false);
+    m_leave->setEnabled(false);
+    m_settings->setEnabled(false);
+    NetworkSettingsDialog dialog(m_client, id, this);
+    dialog.exec();
+    m_settingsOpen = false;
+    m_join->setEnabled(true);
+    m_leave->setEnabled(true);
+    m_settings->setEnabled(!selectedId().isEmpty());
+    m_poller->refresh();
 }

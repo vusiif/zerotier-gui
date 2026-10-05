@@ -8,6 +8,12 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC OFF)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
+if(MSVC)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set(CMAKE_CXX_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
+    set(CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${Python3_EXECUTABLE};${CMAKE_CURRENT_SOURCE_DIR}/scripts/msvc_launcher.py")
+endif()
 
 # Static Qt builds must use the same static MSVC runtime as their SDK.
 get_target_property(QT_CORE_LIBRARY_TYPE Qt6::Core TYPE)
@@ -22,6 +28,10 @@ set(SOURCES
     MainWindow.cpp
     DataTable.cpp
     ZeroTierClient.cpp
+    ManagementClient.cpp
+    InstallWindow.cpp
+    NetworkSettingsDialog.cpp
+    NetworkMonitor.cpp
     tabs/ServiceTab.cpp
     tabs/InfoTab.cpp
     tabs/PeersTab.cpp
@@ -35,6 +45,10 @@ set(HEADERS
     AppLog.h
     DataTable.h
     ZeroTierClient.h
+    ManagementClient.h
+    InstallWindow.h
+    NetworkSettingsDialog.h
+    NetworkMonitor.h
     tabs/ServiceTab.h
     tabs/InfoTab.h
     tabs/PeersTab.h
@@ -49,7 +63,7 @@ if(QT_CORE_LIBRARY_TYPE STREQUAL "STATIC_LIBRARY")
     qt_import_plugins(${PROJECT_NAME} INCLUDE Qt6::QOffscreenIntegrationPlugin)
 endif()
 if(WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE shell32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE shell32 advapi32)
     target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     if(MSVC)
         # ZeroTier's service token is readable by administrators. Apply this
@@ -76,7 +90,7 @@ if(ZEROTIER_BUILD_TESTS)
     endif()
     add_dependencies(zerotier_gui_tests fake_zerotier_cli)
     if(WIN32)
-        target_link_libraries(zerotier_gui_tests PRIVATE shell32)
+        target_link_libraries(zerotier_gui_tests PRIVATE shell32 advapi32)
         target_compile_definitions(zerotier_gui_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     endif()
     if(MSVC)
@@ -84,10 +98,31 @@ if(ZEROTIER_BUILD_TESTS)
         target_compile_options(zerotier_gui_tests PRIVATE /utf-8)
     endif()
     add_test(NAME gui_regressions COMMAND zerotier_gui_tests
+        startupInstallationGate
         windowControlsAndFileLog reconcilePreservesInteraction
         renameSurvivesPollingAndRecreation detailsKeepAllFieldsAndStayNonModal
         mouseDragScrollsBothAxes asynchronousPollAndRecovery windowLayoutAndVisuals
         -platform offscreen -o test-results.txt,txt)
+    foreach(test_name IN ITEMS NetworkSettings NetworkMonitor CommandRunner)
+        string(TOLOWER "${test_name}" test_target)
+        add_executable(${test_target}_test tests/${test_name}Test.cpp
+            ManagementClient.cpp ManagementClient.h ZeroTierClient.cpp ZeroTierClient.h AppLog.cpp AppLog.h)
+        target_include_directories(${test_target}_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_link_libraries(${test_target}_test PRIVATE Qt6::Widgets)
+        if(WIN32)
+            target_link_libraries(${test_target}_test PRIVATE advapi32)
+        endif()
+        if(MSVC)
+            target_compile_options(${test_target}_test PRIVATE /utf-8)
+        endif()
+        add_test(NAME ${test_target} COMMAND ${test_target}_test)
+        if(QT_CORE_LIBRARY_TYPE STREQUAL "STATIC_LIBRARY")
+            qt_import_plugins(${test_target}_test INCLUDE Qt6::QOffscreenIntegrationPlugin)
+        endif()
+        set_tests_properties(${test_target} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+    target_sources(networksettings_test PRIVATE NetworkSettingsDialog.cpp NetworkSettingsDialog.h)
+    target_sources(networkmonitor_test PRIVATE NetworkMonitor.cpp NetworkMonitor.h)
     option(ZEROTIER_TEST_POWERSHELL "Run integration tests that launch PowerShell" OFF)
     if(ZEROTIER_TEST_POWERSHELL)
         add_test(NAME powershell_regressions COMMAND zerotier_gui_tests

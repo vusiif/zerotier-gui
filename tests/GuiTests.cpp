@@ -1,5 +1,6 @@
 #include "../AppStyle.h"
 #include "../AppLog.h"
+#include "../InstallWindow.h"
 #include "../DataTable.h"
 #include "../MainWindow.h"
 #include "../ZeroTierClient.h"
@@ -62,6 +63,25 @@ private slots:
         QSettings().clear();
     }
     void cleanupTestCase() { qputenv("PATH", m_oldPath); }
+    void startupInstallationGate() {
+        bool installed = false;
+        InstallWindow installer([&installed] { return installed; });
+        installer.show();
+        QVERIFY(installer.findChild<QPushButton *>("recheckInstallation"));
+        QVERIFY(installer.findChildren<QPlainTextEdit *>().isEmpty());
+        QVERIFY(installer.findChildren<MainWindow *>().isEmpty());
+        QSignalSpy accepted(&installer, &QDialog::accepted);
+        QTest::qWait(50);
+        QCOMPARE(accepted.size(), 0);
+        installed = true;
+        QTRY_COMPARE_WITH_TIMEOUT(accepted.size(), 1, 2000);
+        QCOMPARE(installer.result(), int(QDialog::Accepted));
+        InstallWindow cancelled([] { return false; });
+        cancelled.show();
+        cancelled.reject();
+        QVERIFY(!cancelled.isVisible());
+        QCOMPARE(cancelled.result(), int(QDialog::Rejected));
+    }
     void windowControlsAndFileLog() {
         MainWindow window;
         window.show();
