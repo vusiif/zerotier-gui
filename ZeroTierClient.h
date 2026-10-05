@@ -33,6 +33,7 @@ class JsonPoller : public QObject {
     Q_OBJECT
 public:
     JsonPoller(QWidget *owner, const QString &command, bool object = false);
+    ~JsonPoller() override;
     void refresh();
 signals:
     void updated(const QJsonDocument &document);

@@ -6,7 +6,8 @@
 class QListWidget;
 class QStackedWidget;
 class QSplitter;
-class QTextEdit;
+class QWidget;
+class QLabel;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -21,6 +22,10 @@ private:
     QListWidget *m_navigation;
     QStackedWidget *m_pages;
     QSplitter *m_horizontal;
-    QTextEdit *m_outputConsole;
+    QWidget *m_sidebar;
+    QLabel *m_brand, *m_subtitle, *m_hint;
+    bool m_collapsed = false;
+    int m_sidebarWidth = 190;
+    void setSidebarCollapsed(bool collapsed);
     void closeEvent(QCloseEvent *event) override;
 };

@@ -1,4 +1,5 @@
 #include "../AppStyle.h"
+#include "../AppLog.h"
 #include "../DataTable.h"
 #include "../MainWindow.h"
 #include "../ZeroTierClient.h"
@@ -24,6 +25,8 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTextStream>
+#include <QToolButton>
+#include <QTextEdit>
 #include <QtTest>
 
 class GuiTests : public QObject {
@@ -53,11 +56,58 @@ private slots:
         applyAppStyle(*qApp);
     }
     void cleanup() {
+        setAppDarkTheme(*qApp, false);
         qunsetenv("ZT_TEST_MODE");
         qunsetenv("ZT_TEST_WINGET_CODE");
         QSettings().clear();
     }
     void cleanupTestCase() { qputenv("PATH", m_oldPath); }
+    void windowControlsAndFileLog() {
+        MainWindow window;
+        window.show();
+        QTest::qWait(50);
+        auto *theme = window.findChild<QToolButton *>("themeToggle");
+        auto *sidebar = window.findChild<QToolButton *>("sidebarToggle");
+        auto *pin = window.findChild<QToolButton *>("alwaysOnTopToggle");
+        auto *navigation = window.findChild<QListWidget *>("navigation");
+        auto *splitter = window.findChild<QSplitter *>("mainSplitter");
+        QVERIFY(theme && sidebar && pin && navigation && splitter);
+        theme->click();
+        QVERIFY(qApp->property("darkTheme").toBool());
+        QVERIFY(qApp->palette().color(QPalette::Text).lightness() > 180);
+        QCOMPARE(QSettings().value("appearance/dark").toBool(), true);
+        QVERIFY(QDir().mkpath("screenshots"));
+        QVERIFY(window.grab().save("screenshots/dark-restored.png"));
+        QMessageBox dialog(QMessageBox::Question, "Test", "Text", QMessageBox::Yes | QMessageBox::No);
+        QVERIFY(dialog.button(QMessageBox::Yes)->palette().color(QPalette::ButtonText).lightness() > 180);
+        sidebar->click();
+        QVERIFY(navigation->item(0)->text().isEmpty());
+        for (int row = 0; row < navigation->count(); ++row) {
+            QVERIFY(!navigation->item(row)->icon().isNull());
+            QVERIFY(!navigation->item(row)->toolTip().isEmpty());
+        }
+        QTRY_VERIFY(splitter->sizes()[0] <= 64);
+        QVERIFY(window.grab().save("screenshots/collapsed-restored.png"));
+        navigation->setCurrentRow(2);
+        QCOMPARE(navigation->currentRow(), 2);
+        sidebar->click();
+        QVERIFY(!navigation->item(0)->text().isEmpty());
+        QVERIFY(splitter->sizes()[0] >= 130);
+        pin->click();
+        QVERIFY(window.windowFlags().testFlag(Qt::WindowStaysOnTopHint));
+        QVERIFY(window.isVisible());
+        pin->click();
+        QVERIFY(!window.windowFlags().testFlag(Qt::WindowStaysOnTopHint));
+        QVERIFY(!window.findChild<QTextEdit *>("outputConsole"));
+        window.appendOutput("file-log-marker");
+        QFile log(AppLog::path());
+        QVERIFY(log.open(QIODevice::ReadOnly));
+        QVERIFY(log.readAll().contains("file-log-marker"));
+        log.close();
+        for (int i = 0; i < 6; ++i) window.appendOutput(QString(300000, 'x'));
+        QVERIFY(QFileInfo(AppLog::path()).size() <= 1024 * 1024);
+        window.close();
+    }
 
     void reconcilePreservesInteraction() {
         DataTable table("test", {"名称", "ID", "状态", "IP"});

@@ -18,6 +18,7 @@ endif()
 set(SOURCES
     main.cpp
     AppStyle.cpp
+    AppLog.cpp
     MainWindow.cpp
     DataTable.cpp
     ZeroTierClient.cpp
@@ -31,6 +32,7 @@ set(SOURCES
 set(HEADERS
     MainWindow.h
     AppStyle.h
+    AppLog.h
     DataTable.h
     ZeroTierClient.h
     tabs/ServiceTab.h
@@ -52,8 +54,9 @@ if(WIN32)
     if(MSVC)
         # ZeroTier's service token is readable by administrators. Apply this
         # only to the shipped app; regression tests remain unprivileged.
-        target_link_options(${PROJECT_NAME} PRIVATE
-            "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'")
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            QT_WINDOWS_APP_PROJECT_EXECUTION_LEVEL requireAdministrator)
+        target_link_options(${PROJECT_NAME} PRIVATE /MANIFESTUAC:NO)
     endif()
 endif()
 
@@ -80,7 +83,17 @@ if(ZEROTIER_BUILD_TESTS)
         target_compile_options(fake_zerotier_cli PRIVATE /utf-8)
         target_compile_options(zerotier_gui_tests PRIVATE /utf-8)
     endif()
-    add_test(NAME gui_regressions COMMAND zerotier_gui_tests -platform offscreen -o test-results.txt,txt)
+    add_test(NAME gui_regressions COMMAND zerotier_gui_tests
+        windowControlsAndFileLog reconcilePreservesInteraction
+        renameSurvivesPollingAndRecreation detailsKeepAllFieldsAndStayNonModal
+        mouseDragScrollsBothAxes asynchronousPollAndRecovery windowLayoutAndVisuals
+        -platform offscreen -o test-results.txt,txt)
+    option(ZEROTIER_TEST_POWERSHELL "Run integration tests that launch PowerShell" OFF)
+    if(ZEROTIER_TEST_POWERSHELL)
+        add_test(NAME powershell_regressions COMMAND zerotier_gui_tests
+            uninstallOnlyCleansAfterSuccess powerShellRedirectionDoesNotBlockPayload
+            -platform offscreen -o powershell-test-results.txt,txt)
+    endif()
 endif()
 
 # Size and memory optimizations for Release

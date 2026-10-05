@@ -110,7 +110,7 @@ void ServiceTab::changeService(const QString &action)
     m_main->runService(action, [this](bool ok) {
         m_busy = false;
         updateInstallation();
-        m_feedback->setText(ok ? QStringLiteral("服务操作完成。") : QStringLiteral("服务操作未完成，请查看操作日志。"));
+        m_feedback->setText(ok ? QStringLiteral("服务操作完成。") : QStringLiteral("服务操作未完成，请检查管理员权限和服务状态。"));
         m_poller->refresh();
     });
 }
@@ -140,7 +140,7 @@ void ServiceTab::packageAction(bool uninstall)
         m_busy = false;
         updateInstallation();
         m_feedback->setText(ok ? (uninstall ? QStringLiteral("ZeroTier 已卸载，数据目录已删除。") : QStringLiteral("安装完成，可进入网络页面加入网络。"))
-                               : (uninstall ? QStringLiteral("卸载或数据清理未完成，请查看操作日志。") : QStringLiteral("安装未完成，请查看操作日志。")));
+                               : (uninstall ? QStringLiteral("卸载或数据清理未完成，请检查权限和服务状态。") : QStringLiteral("安装未完成，请检查网络连接和 winget。")));
         m_poller->refresh();
     });
 }

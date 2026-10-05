@@ -66,7 +66,7 @@ void MoonTab::addMoon()
         "Restart-Service -Name ZeroTierOneService -ErrorAction Stop\nexit 0\n} catch { Write-Output $_; exit 1 }";
     m_main->runElevatedScript(QStringLiteral("添加 Moon 并重启服务"), script, [this](bool ok) {
         m_add->setEnabled(true);
-        if (!ok) QMessageBox::warning(this, QStringLiteral("添加 Moon 失败"), QStringLiteral("文件复制或服务重启失败，请查看操作日志。"));
+        if (!ok) QMessageBox::warning(this, QStringLiteral("添加 Moon 失败"), QStringLiteral("文件复制或服务重启失败，请检查文件权限和服务状态。"));
         else m_poller->refresh();
     });
 }

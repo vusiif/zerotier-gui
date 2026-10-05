@@ -222,6 +222,18 @@ JsonPoller::JsonPoller(QWidget *owner, const QString &command, bool object)
     QTimer::singleShot(0, this, &JsonPoller::refresh);
 }
 
+JsonPoller::~JsonPoller()
+{
+    m_interval.stop();
+    m_timeout.stop();
+    m_process.disconnect(this);
+    disconnect();
+    if (m_process.state() != QProcess::NotRunning) {
+        m_process.kill();
+        m_process.waitForFinished(1000);
+    }
+}
+
 void JsonPoller::failed(const QString &message)
 {
     emit availabilityChanged(false, message);
